@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "normalize-qai-logs"
+version = "1.0.0"
+description = "A CLI tool to normalize YourNavi-QAI logs and segment them into sessions based on user reset commands."
+authors = [
+    {name = "Antigravity"}
+]
+dependencies = [
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.pytest.ini_options]
+addopts = "-v"
+testpaths = [
+    "tests",
+]

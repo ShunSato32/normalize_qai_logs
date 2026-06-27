@@ -1,0 +1,7 @@
+﻿table,granularity,logical_key,description
+raw_events,入力CSVの1行,event_id,入力データの統合原本
+interactions,1問い合わせ処理,interaction_key,message_idでグループ化した質問回答単位
+retrieval_results,検索結果1件,interaction_key + tool_event_id + rank_in_tool_event,similar_recordsの展開結果
+feedback,feedbackイベント1件,event_id,ユーザーからの評価
+reset_sessions,リセットで区切った区間,reset_session_id,リセット要求を境界としたセッション
+integrated,interaction × feedbackの交差行,output_row_id,問い合わせ・評価・検索結果・セッションを結合した統合データ
