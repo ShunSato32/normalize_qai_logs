@@ -28,8 +28,8 @@ def get_circled_num_score(rank: int) -> str:
     else:
         return CIRCLED_NUMS[rank - 1]
 
-# Build the complete headers list (110 columns total)
-HEADERS = [
+# Build the complete template headers list representing the original 110 columns
+TEMPLATE_HEADERS = [
     # 15.1
     "output_row_id",
     "No.",
@@ -81,11 +81,11 @@ HEADERS = [
 for k in range(1, 11):
     doc_c = get_circled_num_doc_content(k)
     score_c = get_circled_num_score(k)
-    HEADERS.append(f"参照文書{doc_c}")
-    HEADERS.append(f"参考箇所{doc_c}")
-    HEADERS.append(f"score{score_c}")
+    TEMPLATE_HEADERS.append(f"参照文書{doc_c}")
+    TEMPLATE_HEADERS.append(f"参考箇所{doc_c}")
+    TEMPLATE_HEADERS.append(f"score{score_c}")
 
-HEADERS.extend([
+TEMPLATE_HEADERS.extend([
     # 15.8
     "feedback_id",
     "feedback_seq",
@@ -109,9 +109,9 @@ HEADERS.extend([
 
 for k in range(1, 11):
     doc_c = get_circled_num_doc_content(k)
-    HEADERS.append(f"参照箇所{doc_c}")
+    TEMPLATE_HEADERS.append(f"参照箇所{doc_c}")
 
-HEADERS.extend([
+TEMPLATE_HEADERS.extend([
     "教師データ有無",
     "キーワード1",
     "キーワード2",
@@ -129,13 +129,49 @@ HEADERS.extend([
     "messageID"
 ])
 
-WRAP_COLS = {
-    "質問内容", "user_content_raw", "回答内容", "error_message", 
-    "feedback_comment", "normalization_warnings", "分析コメント", "評価コメント"
+# Renames mapping from TEMPLATE_HEADERS to English equivalent physical_names
+RENAMED_COLUMNS = {
+    "output_row_id": "unique_row_id",
+    "質問内容": "question",
+    "回答内容": "answer",
+    "質問/回答\n分類": "qa_classification",
+    "対象/\n対象外": "is_target",
+    "教師データ有無": "has_training_data",
+    "キーワード1": "keyword_1",
+    "キーワード2": "keyword_2",
+    "キーワード3": "keyword_3",
+    "Hit判定": "hit_judgment",
+    "回答判定": "answer_judgment",
+    "正答判定": "accuracy_judgment",
+    "分析コメント": "analysis_comment",
+    "原因": "error_cause",
+    "対応方針": "action_plan",
+    "対応進捗": "progress",
+    "Vantiq相談": "vantiq_consultation",
+    "日付": "date_jst",
+    "所属": "department",
 }
 for k in range(1, 11):
     doc_c = get_circled_num_doc_content(k)
-    WRAP_COLS.add(f"参考箇所{doc_c}")
+    score_c = get_circled_num_score(k)
+    RENAMED_COLUMNS[f"参照文書{doc_c}"] = f"ref_doc_{k}"
+    RENAMED_COLUMNS[f"参考箇所{doc_c}"] = f"ref_text_{k}"
+    RENAMED_COLUMNS[f"score{score_c}"] = f"score_{k}"
+    RENAMED_COLUMNS[f"参照箇所{doc_c}"] = f"ref_check_{k}"
+
+# Build HEADERS by copying TEMPLATE_HEADERS but removing UTC columns and applying renames
+DELETED_COLUMNS = {"started_at_utc", "completed_at_utc"}
+HEADERS = []
+for h in TEMPLATE_HEADERS:
+    if h not in DELETED_COLUMNS:
+        HEADERS.append(RENAMED_COLUMNS.get(h, h))
+
+WRAP_COLS = {
+    "question", "user_content_raw", "answer", "error_message", 
+    "feedback_comment", "normalization_warnings", "analysis_comment", "evaluation_comment"
+}
+for k in range(1, 11):
+    WRAP_COLS.add(f"ref_text_{k}")
 
 def parse_iso_datetime(dt_str: str) -> datetime:
     if not dt_str:
@@ -160,22 +196,26 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
     ws = wb["実施記録シート"]
     
     # 1. Cache the styles from row 4 before clearing values.
-    # We map from physical column name to its style, based on original HEADERS mapping.
+    # We map from physical column name to its style, based on original TEMPLATE_HEADERS mapping.
     physical_styles_cache = {}
-    for idx, orig_header in enumerate(HEADERS):
+    for idx, orig_header in enumerate(TEMPLATE_HEADERS):
         col_idx = idx + 2
         if col_idx <= ws.max_column:
             cell = ws.cell(row=4, column=col_idx)
-            physical_styles_cache[orig_header] = {
+            style_dict = {
                 "font": cell.font,
                 "fill": cell.fill,
                 "border": cell.border,
                 "alignment": cell.alignment,
                 "number_format": cell.number_format
             }
+            physical_styles_cache[orig_header] = style_dict
+            new_name = RENAMED_COLUMNS.get(orig_header)
+            if new_name:
+                physical_styles_cache[new_name] = style_dict
 
     # 2. Load column configuration dynamically
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "column_config.json")
+    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "column_config.json")
     active_columns = []
     if os.path.exists(config_path):
         try:
@@ -211,6 +251,9 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
         col_idx = idx + 2
         cell = ws.cell(row=3, column=col_idx)
         cell.value = jname
+    # Clear any leftover headers beyond the active columns
+    for col_idx in range(2 + len(active_columns), max_col + 1):
+        ws.cell(row=3, column=col_idx).value = None
         
     # 5. Populate rows from row 4 onwards
     last_row_index = 3 + len(rows)
@@ -218,6 +261,7 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
         last_row_index = 4
         
     for row_num, row_data in enumerate(rows, start=4):
+        is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
         for idx, (pname, jname) in enumerate(active_columns):
             col_idx = idx + 2
             cell = ws.cell(row=row_num, column=col_idx)
@@ -225,49 +269,49 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
             # Write value or formula
             if pname == "No.":
                 cell.value = f"=ROW(A{row_num})-3"
-            elif pname == "対象/\n対象外":
-                # References "質問/回答\n分類" (CC in default)
-                q_a_class_col = col_letters.get("質問/回答\n分類", "CC")
-                cell.value = f'=IF(OR({q_a_class_col}{row_num}="①", {q_a_class_col}{row_num}="⑤"), "〇", "×")'
-            elif pname.startswith("参照箇所") and len(pname) > 4:
-                circle = pname[4:]
+            elif pname == "qa_classification":
+                val = row_data.get("qa_classification", "")
+                if is_sys_cmd and not val:
+                    cell.value = "④集計対象外"
+                else:
+                    cell.value = val
+            elif pname == "is_target":
+                if is_sys_cmd:
+                    cell.value = "×"
+                else:
+                    # References "qa_classification" (CC in default)
+                    q_a_class_col = col_letters.get("qa_classification", "CC")
+                    cell.value = f'=IF(OR(LEFT({q_a_class_col}{row_num},1)="①", LEFT({q_a_class_col}{row_num},1)="⑤"), "⚪︎", "×")'
+            elif pname.startswith("ref_check_") and len(pname) > 10:
                 try:
-                    rank = CIRCLED_NUMS.index(circle) + 1
+                    rank = int(pname[10:])
                 except ValueError:
-                    if circle == "➂":
-                        rank = 3
-                    elif circle == "➈":
-                        rank = 9
-                    elif circle == "➉":
-                        rank = 10
-                    else:
-                        rank = 1
-                ref_desc_col = col_letters.get(f"参考箇所{circle}", "AP")
-                kw1_col = col_letters.get("キーワード1", "CT")
-                kw2_col = col_letters.get("キーワード2", "CU")
-                kw3_col = col_letters.get("キーワード3", "CV")
+                    rank = 1
+                ref_desc_col = col_letters.get(f"ref_text_{rank}", "AP")
+                kw1_col = col_letters.get("keyword_1", "CT")
+                kw2_col = col_letters.get("keyword_2", "CU")
+                kw3_col = col_letters.get("keyword_3", "CV")
                 cell.value = f'=IF(OR(AND(${kw1_col}{row_num}<>"",ISNUMBER(SEARCH(${kw1_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw2_col}{row_num}<>"",ISNUMBER(SEARCH(${kw2_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw3_col}{row_num}<>"",ISNUMBER(SEARCH(${kw3_col}{row_num}, {ref_desc_col}{row_num})))),"〇","-")'
-            elif pname == "Hit判定":
+            elif pname == "hit_judgment":
                 check_cols = []
                 for k in range(1, 11):
-                    circle = get_circled_num_doc_content(k)
-                    col_let = col_letters.get(f"参照箇所{circle}")
+                    col_let = col_letters.get(f"ref_check_{k}")
                     if col_let:
                         check_cols.append(f'{col_let}{row_num}="〇"')
                 if check_cols:
                     cell.value = f'=IF(OR({",".join(check_cols)}),"〇","")'
                 else:
                     cell.value = ""
-            elif pname == "日付":
+            elif pname == "date_jst":
                 start_jst_col = col_letters.get("started_at_jst", "U")
                 cell.value = f'=TEXT({start_jst_col}{row_num},"yyyy/mm/dd")'
-            elif pname == "所属":
+            elif pname == "department":
                 user_name_col = col_letters.get("user_name", "K")
                 cell.value = f'=VLOOKUP({user_name_col}{row_num},社員マスタ!C:D,2,0)'
             elif pname == "messageID":
                 cell.value = str(row_data.get("message_id", ""))
                 cell.data_type = "s"
-            elif pname in ("output_row_id", "interaction_id", "message_id", "conversation_id", "reset_session_id", "feedback_id"):
+            elif pname in ("unique_row_id", "interaction_id", "message_id", "conversation_id", "reset_session_id", "feedback_id"):
                 cell.value = str(row_data.get(pname, ""))
                 cell.data_type = "s"
             elif pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
@@ -281,22 +325,11 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                     cell.value = float(val)
                 else:
                     cell.value = None
-            elif "score" in pname:
+            elif pname.startswith("score_") and len(pname) > 6:
                 try:
-                    circle = pname[5:]
+                    rank = int(pname[6:])
                 except Exception:
-                    circle = ""
-                rank = 1
-                for idx_c, c in enumerate(CIRCLED_NUMS):
-                    if c == circle:
-                        rank = idx_c + 1
-                        break
-                if circle == "➂":
-                    rank = 3
-                elif circle == "➈":
-                    rank = 9
-                elif circle == "➉":
-                    rank = 10
+                    rank = 1
                 col_name = f"retrieval_{rank:02d}"
                 json_str = row_data.get(col_name)
                 if json_str:
@@ -312,19 +345,11 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                         cell.value = None
                 else:
                     cell.value = None
-            elif pname.startswith("参照文書") and len(pname) > 4:
-                circle = pname[4:]
-                rank = 1
-                for idx_c, c in enumerate(CIRCLED_NUMS):
-                    if c == circle:
-                        rank = idx_c + 1
-                        break
-                if circle == "➂":
-                    rank = 3
-                elif circle == "➈":
-                    rank = 9
-                elif circle == "➉":
-                    rank = 10
+            elif pname.startswith("ref_doc_") and len(pname) > 8:
+                try:
+                    rank = int(pname[8:])
+                except Exception:
+                    rank = 1
                 col_name = f"retrieval_{rank:02d}"
                 json_str = row_data.get(col_name)
                 if json_str:
@@ -336,19 +361,11 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                         cell.value = ""
                 else:
                     cell.value = ""
-            elif pname.startswith("参考箇所") and len(pname) > 4:
-                circle = pname[4:]
-                rank = 1
-                for idx_c, c in enumerate(CIRCLED_NUMS):
-                    if c == circle:
-                        rank = idx_c + 1
-                        break
-                if circle == "➂":
-                    rank = 3
-                elif circle == "➈":
-                    rank = 9
-                elif circle == "➉":
-                    rank = 10
+            elif pname.startswith("ref_text_") and len(pname) > 9:
+                try:
+                    rank = int(pname[9:])
+                except Exception:
+                    rank = 1
                 col_name = f"retrieval_{rank:02d}"
                 json_str = row_data.get(col_name)
                 if json_str:
@@ -375,7 +392,7 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 key_map = {
                     "predicted_category": "predicted_category",
                     "user_selected_category": "user_selected_category",
-                    "回答内容": "回答内容",
+                    "answer": "answer",
                     "fist_category": "fist_category",
                     "final_category": "final_category",
                     "category_source": "category_source",

@@ -1,8 +1,8 @@
 {
-  "generated_at_utc": "2026-06-27T08:22:52.523863Z",
+  "generated_at_utc": "2026-07-12T18:32:17.858696Z",
   "tool_version": "1.0.0",
-  "input_directory": "../csv/",
-  "output_directory": "output_run/",
+  "input_directory": "input_csv",
+  "output_directory": "output_run",
   "anonymize_users": false,
   "strict_mode": false,
   "readable_input_files": [
@@ -33,9 +33,9 @@
     "conversation_count": 234,
     "reset_session_count": 251,
     "reset_request_count": 18,
-    "natural_question_count": 443,
+    "natural_question_count": 504,
     "tool_interaction_count": 357,
-    "no_answer_count": 72,
+    "no_answer_count": 106,
     "error_interaction_count": 3,
     "feedback_count": 5,
     "retrieval_result_count": 1356,

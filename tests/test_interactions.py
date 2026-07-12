@@ -83,3 +83,51 @@ def test_message_id_collision():
     
     assert len(interactions) == 2
     assert manifest.counts["message_id_collision_count"] == 1
+
+def test_system_command_from_config(tmp_path):
+    import json
+    import os
+    from normalizer import load_system_commands
+    
+    # Verify current system_commands.json behavior (user configured '[追加評価]')
+    events = [
+        RawEvent("DM", "c1", "user", "[追加評価]", "User", "", "", "", "", "2026-05-18T10:00:00Z", "m1"),
+    ]
+    for e in events:
+        e.interaction_key = f"{e.conversation_id}::{e.message_id}"
+        e.created_at_utc = datetime.fromisoformat(e.created_at_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+        
+    manifest = Manifest()
+    interactions, _ = normalize_events(events, manifest)
+    assert len(interactions) == 1
+    assert interactions[0].is_command is True
+    assert interactions[0].interaction_type == "command"
+    
+    # Verify loading custom JSON
+    custom_cfg = tmp_path / "system_commands.json"
+    custom_cfg.write_text(json.dumps({"system_commands": ["カスタムヘルプ"]}), encoding="utf-8")
+    loaded = load_system_commands(str(custom_cfg))
+    assert loaded == ["カスタムヘルプ"]
+
+def test_no_answer_from_config(tmp_path):
+    import json
+    from normalizer import load_no_answer_phrases
+    
+    events = [
+        RawEvent("DM", "c1", "user", "Q1", "User", "", "", "", "", "2026-05-18T10:00:00Z", "m1"),
+        RawEvent("DM", "c1", "assistant", "ご質問の内容に関する情報が見つかりませんでした", "Bot", "", "", "", "", "2026-05-18T10:00:01Z", "m1"),
+    ]
+    for e in events:
+        e.interaction_key = f"{e.conversation_id}::{e.message_id}"
+        e.created_at_utc = datetime.fromisoformat(e.created_at_str.replace("Z", "+00:00")).astimezone(timezone.utc)
+        
+    manifest = Manifest()
+    interactions, _ = normalize_events(events, manifest)
+    assert len(interactions) == 1
+    assert interactions[0].is_no_answer is True
+    
+    custom_cfg = tmp_path / "system_commands.json"
+    custom_cfg.write_text(json.dumps({"no_answer_phrases": ["該当なし"], "unsupported_phrases": ["非対応"]}), encoding="utf-8")
+    loaded = load_no_answer_phrases(str(custom_cfg))
+    assert loaded["no_answer_phrases"] == ["該当なし"]
+    assert loaded["unsupported_phrases"] == ["非対応"]

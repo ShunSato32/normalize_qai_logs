@@ -82,7 +82,7 @@ class Interaction:
     source_files: str = ""
     reset_session_no: int = 0
     reset_session_id: str = ""
-    interaction_no_in_session: int = 0
+    interaction_no_in_session: Any = 0
     ends_session_by_reset: bool = False
 
 @dataclass

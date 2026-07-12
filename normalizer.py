@@ -1,9 +1,51 @@
 import ast
 import json
+import os
 import re
 from typing import List, Dict, Tuple, Any
 
 from core import RawEvent, Interaction, Manifest, JST
+
+def load_classification_rules(config_path: str = "config/system_commands.json") -> Dict[str, List[str]]:
+    defaults = {
+        "system_commands": ["カテゴリ", "こんにちは", "ヘルプ", "<at>YourNavi-QAI_Docomo</at>", "テスト"],
+        "no_answer_phrases": ["ご質問の内容に関する情報が見つかりませんでした"],
+        "unsupported_phrases": ["お答えできません"]
+    }
+    paths_to_check = [
+        config_path,
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+    ]
+    for path in paths_to_check:
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        return {
+                            "system_commands": data.get("system_commands", defaults["system_commands"]),
+                            "no_answer_phrases": data.get("no_answer_phrases", defaults["no_answer_phrases"]),
+                            "unsupported_phrases": data.get("unsupported_phrases", defaults["unsupported_phrases"])
+                        }
+                    elif isinstance(data, list):
+                        return {
+                            "system_commands": data,
+                            "no_answer_phrases": defaults["no_answer_phrases"],
+                            "unsupported_phrases": defaults["unsupported_phrases"]
+                        }
+            except Exception:
+                pass
+    return defaults
+
+def load_system_commands(config_path: str = "config/system_commands.json") -> List[str]:
+    return load_classification_rules(config_path)["system_commands"]
+
+def load_no_answer_phrases(config_path: str = "config/system_commands.json") -> Dict[str, List[str]]:
+    rules = load_classification_rules(config_path)
+    return {
+        "no_answer_phrases": rules["no_answer_phrases"],
+        "unsupported_phrases": rules["unsupported_phrases"]
+    }
 
 def sort_events(events: List[RawEvent]) -> List[RawEvent]:
     # 1. created_at UTC (if None, push to end but keep stable relative order)
@@ -78,6 +120,13 @@ def assign_unique_interaction_keys(events: List[RawEvent]):
             e.interaction_key = f"{conv_id}-{msg_id}-{seq:02d}"
 
 def normalize_events(events: List[RawEvent], manifest: Manifest) -> Tuple[List[Interaction], List[Dict[str, Any]]]:
+    # Load system commands and response flags keywords from config files
+    cmd_list = load_system_commands()
+    response_phrases = load_no_answer_phrases()
+    no_answer_list = response_phrases.get("no_answer_phrases", [])
+    unsupported_list = response_phrases.get("unsupported_phrases", [])
+    
+    
     # Sort globally
     events = sort_events(events)
     
@@ -270,28 +319,31 @@ def normalize_events(events: List[RawEvent], manifest: Manifest) -> Tuple[List[I
             
         # Determine Interaction Type
         q_trim = interaction.question.strip()
-        cmd_list = ["カテゴリ", "こんにちは", "ヘルプ", "<at>YourNavi-QAI_Docomo</at>", "テスト"]
         
         if has_feedback and not questions:
             interaction.interaction_type = "feedback_only"
-        elif q_trim == "リセット":
+        elif q_trim in cmd_list:
+            interaction.interaction_type = "command"
+            interaction.is_command = True
+            if q_trim in ("リセット", "[リセット]"):
+                interaction.is_reset_request = True
+            elif q_trim == "[カテゴリ選択]":
+                interaction.is_category_selection = True
+        elif q_trim in ("リセット", "[リセット]"):
             interaction.interaction_type = "reset"
             interaction.is_reset_request = True
         elif q_trim == "[カテゴリ選択]":
             interaction.interaction_type = "category_selection"
             interaction.is_category_selection = True
-        elif q_trim in cmd_list:
-            interaction.interaction_type = "command"
-            interaction.is_command = True
         elif q_trim != "":
             interaction.interaction_type = "question"
             interaction.is_natural_question = True
         else:
             interaction.interaction_type = "system_or_orphan"
             
-        if "ご質問の内容に関する情報が見つかりませんでした" in interaction.answer:
+        if any(phrase in interaction.answer for phrase in no_answer_list if phrase):
             interaction.is_no_answer = True
-        if "お答えできません" in interaction.answer:
+        if any(phrase in interaction.answer for phrase in unsupported_list if phrase):
             interaction.is_unsupported = True
             
         # Times and Latency

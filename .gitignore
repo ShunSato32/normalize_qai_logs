@@ -1,0 +1,10 @@
+# Ignore sample input and output directories
+sample_input/
+sample_output/
+
+# Python caching
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store

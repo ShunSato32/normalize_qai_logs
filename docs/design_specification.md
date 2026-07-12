@@ -88,7 +88,8 @@ erDiagram
         string question "質問内容"
         string answer "回答内容"
         string final_category "最終決定カテゴリ"
-        string started_at_utc "対話開始UTC"
+        datetime started_at_jst "対話開始日時（JST）"
+        datetime completed_at_jst "対話完了日時（JST）"
         float response_latency_seconds "処理時間"
     }
 
@@ -119,7 +120,7 @@ erDiagram
     }
 
     IntegratedRow {
-        string output_row_id PK "interaction_key-FB評価連番"
+        string unique_row_id PK "interaction_key-FB評価連番"
         string interaction_id FK "対話への外部キー"
         int feedback_seq "評価連番 (なし=0, あり=1...)"
         string user_name "質問投入者"
@@ -150,9 +151,8 @@ erDiagram
 | `team_name` | `team_name` | `false` | そのまま出力（エクセルでは「チーム名」と表記）。 |
 | `conversation_id`| `conversation_id` | `false` | そのまま出力。 |
 | `message_id` | `message_id` | `false` | そのまま出力。 |
-| `created_at` | `started_at_utc` / `completed_at_utc` | `true` | グループ化されたInteractionに属する全イベントの `created_at` の最小値を `started_at`、最大値（Feedback除外）を `completed_at` とする。 |
-| | `started_at_jst` / `completed_at_jst` | `true` | 上記UTC日時を、JST (UTC+9) のタイムゾーンに変換した上で `YYYY-MM-DDTHH:MM:SS+09:00` 形式で格納。 |
-| | `latency_sec` | `true` | `(completed_at_utc - started_at_utc)` の総秒数（小数点第3位まで）を計算。 |
+| `created_at` | `started_at_jst` / `completed_at_jst` | `true` | グループ化されたInteractionに属する全イベントの `created_at` の最小値を開始日時、最大値（Feedback除外）を完了日時とし、JST (UTC+9) に変換した上で `YYYY-MM-DDTHH:MM:SS+09:00` 形式で格納。 |
+| | `latency_sec` | `true` | `(completed_at_jst - started_at_jst)` の総秒数（小数点第3位まで）を計算。 |
 | `content` | `質問内容` | `true` | `message_type == 'user'` のイベントの `content` 本文（非自然言語指示もそのまま保持）。複数フィードバック時の2行目以降は `[追加評価]` を格納。 |
 | | `user_content_raw` | `true` | ユーザーが入力したそのままの生テキスト。 |
 | | `回答内容` | `true` | `message_type == 'assistant'` のイベントの `content` 本文。 |
@@ -170,7 +170,7 @@ erDiagram
 
 | 統合版エクセルの列キー (`physical_name`) | 生成・算出ロジック | 目的・用途 |
 | :--- | :--- | :--- |
-| `output_row_id` | `interaction_id` と `feedback_seq` を `-FB{seq:03d}` で結合して生成。 | 複数フィードバック（評価）による複製行を含めた、全出力データの完全な一意キー（プライマリキー）を確保するため。 |
+| `unique_row_id` | `interaction_id` と `feedback_seq` を `-FB{seq:03d}` で結合して生成。 | 複数フィードバック（評価）による複製行を含めた、全出力データの完全な一意キー（プライマリキー）を確保するため。 |
 | `No.` | エクセル上の行番号に基づいて動的に数式 `=ROW(A{row_num})-3` を挿入。 | 分析時の連番（1から開始）の自動表示。 |
 | `interaction_id` | `conversation_id` と `message_id` を `-` で結合。同じメッセージIDが同一会話セッション内で時系列順に重複して発生した場合は、クロノロジカルに連番サフィックス（`-02` 等）を付与。 | 同一会話セッション内での1往復（質問＋回答＋検索＋評価）を一つの対話グループとして特定・集約するため。 |
 | `reset_session_id` | `conversation_id` とセッション連番を組み合わせた一意ID。 | 会話内でユーザーが「リセット」要求を行って区切られた「セッション」をグルーピング・特定するため。 |
@@ -179,13 +179,12 @@ erDiagram
 | `is_first_interaction_row` | その対話に属する出力行の中で、最初の評価連番（`feedback_seq == 1`、評価無しの場合は `feedback_seq == 0`）の行を `1`、それ以外の複製行（追加のフィードバック行）を `0` とする。 | 重複した対話内容をカウントせず、純粋な対話回数や応答速度の平均をユニークに集計できるようにするため。 |
 | `質問内容` | メッセージタイプが `user` のイベントの `content` 本文。非自然言語指示も保持し、2行目以降は `[追加評価]` とする。 | 分析時にユーザーが何を入力したかを確認するため。 |
 | `user_content_raw` | ユーザーイベントの `content` を無加工でそのまま保持。2行目以降は空欄。 | 監査時の生データ確認用。 |
-| `is_natural_language_query` | ユーザーの入力内容が、リセットやカテゴリ選択指示、または短縮コマンド（「こんにちは」など）のいずれにも該当しない場合に `1`、それ以外に `0` を設定。 | 分析対象となる「実質的な質問」のみをフィルタリングするため。 |
+| `is_natural_language_query` | ユーザーの入力内容が、リセットや短縮コマンド（「こんにちは」など）のいずれにも該当しない場合に `1`、それ以外に `0` を設定（エクセル上では「集計対象」と表記）。 | 分析対象となる「実質的な質問」のみをフィルタリングするため。 |
 | `is_reset_request` | ユーザーの入力テキストが `リセット` の場合に `1`、それ以外に `0`。 | セッション切替イベントの特定。 |
-| `is_category_selection` | ユーザーの入力テキストが `[カテゴリ選択]` の場合に `1`、それ以外に `0`。 | カテゴリ選択アクションの特定。 |
 | `is_system_command` | ユーザーの入力テキストが登録コマンドリスト（`ヘルプ`、`こんにちは` など）に合致する場合に `1`、それ以外に `0`。 | システムコマンド操作の特定。 |
-| `started_at_utc` / `completed_at_utc` | 対話グループ内の全イベントの最小 `created_at` を開始日時、最大 `created_at` (Feedbackを除く) を完了日時とする。 | 処理の監査および処理時間算出用。 |
-| `started_at_jst` / `completed_at_jst` | 上記UTC日時をJST（UTC+9）のタイムゾーン表記（`YYYY-MM-DDTHH:MM:SS+09:00`）に変換。 | 日本時間基準でのデータ集計（日次集計や時間帯別分析など）。 |
-| `latency_sec` | `(completed_at_utc - started_at_utc)` の総秒数を小数点第3位まで算出。 | レスポンス速度の監視と性能目標評価。 |
+| `started_at_jst` / `completed_at_jst` | 対話グループ内の全イベントの最小 `created_at`（開始）および最大 `created_at` (Feedbackを除く、完了) をJST（UTC+9）タイムゾーン表記（`YYYY-MM-DDTHH:MM:SS+09:00`）に変換。 | 日本時間基準でのデータ集計（日次集計や時間帯別分析など）。 |
+| `latency_sec` | `(completed_at_jst - started_at_jst)` の総秒数を小数点第3位まで算出。 | レスポンス速度の監視と性能目標評価。 |
+| `note` | 手動分析用の空欄備考列（エクセル上では「備考」と表記）。 | アナリストによる手動コメント記録用。 |
 | `selected_function` | アシスタントメッセージから `[選択された関数][...]` の文字列パターンを抽出・重複排除して ` | ` で結合。 | どの機能/ツールが動作したかの技術的な追跡。 |
 | `predicted_category` | アシスタントメッセージから `[カテゴリ選択]` で指定されたカテゴリ名を抽出。 | AIが判定した予測カテゴリの記録。 |
 | `user_selected_category` | ユーザーメッセージから `[カテゴリ選択]` で指定されたカテゴリ名を抽出・重複排除して ` | ` で結合。 | ユーザーが自身で選択したカテゴリの記録。 |
@@ -209,7 +208,7 @@ erDiagram
 | `feedback_count` | この対話に紐づくフィードバックイベントの総件数。 | 同一対話に対する評価の活性度。 |
 | `feedback_at_utc` / `feedback_at_jst` | 評価イベントの発生日時。 | 評価が投稿された日時のトレース。 |
 | `is_latest_feedback` | 最も新しい評価イベントの行を `1`、過去の評価行を `0` とする。 | 最終的な良悪評価を集計する際に、同一ユーザーによる上書き評価のみをユニークにカウントするため。 |
-| `session_ends_with_reset` | セッションの最後の対話がリセット要求で終わった場合に `1`、それ以外（時間切れ等）に `0`。 | ユーザーが意図的に対話を切断したセッションの割合の測定。 |
+| `session_ends_with_reset` | セッションの最後の対話がリセット要求で終わった場合に `1`、それ以外（時間切れ等）に `0`。 | ユーザーが意図的に対話を切断したセッション of 割合の測定。 |
 | `source_files` | 対話に含まれるイベントの元となった生CSVファイル名のリスト。 | データソースへのトレーサビリティ確保。 |
 | `source_event_row_count` | 対話に含まれる全イベントの総件数。 | データ整合性の監査用。 |
 | `source_event_types` | 対話に含まれるイベントの `message_type` の時系列遷移（例：`user > assistant > tool > feedback`）。 | 処理フローの監査用。 |
@@ -223,10 +222,10 @@ erDiagram
 | 処理フェーズ・コンポーネント | 実装ソースファイル（リンク） | 担当する関数/クラス | 主な生成・算出変数/カラム |
 | :--- | :--- | :--- | :--- |
 | **対話（Interaction）の分割と基本属性の算出** | [normalizer.py](../normalizer.py) | `assign_unique_interaction_keys` | `interaction_id` (会話IDとメッセージIDを結合し重複時に連番サフィックスを付与して生成) |
-| | | `normalize_events` | `started_at_utc`, `completed_at_utc`, `latency_sec` (処理秒数の計算)<br>`質問内容`, `user_content_raw` (発話文の抽出)<br>`is_natural_language_query`, `is_reset_request`, `is_category_selection`, `is_system_command` (ユーザー発話判定フラグ)<br>`selected_function`, `predicted_category`, `user_selected_category`, `fist_category` (予測・選択カテゴリ抽出)<br>`回答内容`, `has_answer`, `is_no_answer` (回答抽出と回答有無・回答なしフラグ)<br>`has_error`, `error_count`, `error_message` (エラー監査情報) |
+| | | `normalize_events` | `started_at_jst`, `completed_at_jst`, `latency_sec` (処理秒数の計算)<br>`質問内容`, `user_content_raw` (発話文の抽出)<br>`is_natural_language_query`, `is_reset_request`, `is_system_command` (ユーザー発話判定フラグ)<br>`selected_function`, `predicted_category`, `user_selected_category`, `fist_category` (予測・選択カテゴリ抽出)<br>`回答内容`, `has_answer`, `is_no_answer` (回答抽出と回答有無・回答なしフラグ)<br>`has_error`, `error_count`, `error_message` (エラー監査情報) |
 | **セッション分割（Sessionization）** | [sessionizer.py](../sessionizer.py) | `sessionize` | `reset_session_id` (リセット境界ごとの一意セッションID)<br>`reset_session_no` (リセットが実行された順番のセッション番号)<br>`interaction_no_in_session` (セッション内の対話連番) |
-| **データマージ・複製行処理（Integration）** | [integrated.py](../integrated.py) | `build_integrated_rows` | `output_row_id` (対話IDと評価連番の結合ID)<br>`is_first_interaction_row` (初回対話行フラグ)<br>`is_latest_feedback` (最新評価フラグ)<br>`retrieval_01` 〜 `retrieval_10` (検索ヒット結果10件のJSON展開)<br>**2行目以降の複製行処理**: `質問内容` を `[追加評価]` に書き換え、その他の対話情報・メトリクス・検索結果をクリアする制御ロジック |
-| **エクセル数式セルの動的解決と書き込み** | [excel_writer.py](../excel_writer.py) | `write_integrated_to_excel` | `No.` (動的連番数式)<br>`対象/対象外` (分類に基づく対象フラグ数式)<br>`日付` (JST日付への変換数式)<br>`所属` (マスタからの所属VLOOKUP数式)<br>各 `参照箇所①〜⑩` の判定および `Hit判定` の部分一致判定数式 |
+| **データマージ・複製行処理（Integration）** | [integrated.py](../integrated.py) | `build_integrated_rows` | `unique_row_id` (対話IDと評価連番の結合ID)<br>`is_first_interaction_row` (初回対話行フラグ)<br>`is_latest_feedback` (最新評価フラグ)<br>`retrieval_01` 〜 `retrieval_10` (検索ヒット結果10件のJSON展開)<br>**2行目以降の複製行処理**: `質問内容` を `[追加評価]` に書き換え、その他の対話情報・メトリクス・検索結果をクリアする制御ロジック |
+| **エクセル数式セルの動的解決と書き込み** | [excel_writer.py](../excel_writer.py) | `write_integrated_to_excel` | `No.` (動的連番数式)<br>`対象/対象外` (分類に基づく対象フラグ数式)<br>各 `参照箇所①〜⑩` の判定および `Hit判定` の部分一致判定数式 |
 
 ### 4.4 `normalize_events` 内部の段階的処理ロジックの詳細
 
@@ -281,25 +280,24 @@ graph TD
 * **対話タイプ (`interaction_type`) の判定**:
   - `質問内容` のトリム文字列を基に、以下のように判定します。
     - `リセット` の場合：`reset` (セッション切替要求)
-    - `[カテゴリ選択]` の場合：`category_selection`
     - `カテゴリ`, `こんにちは`, `ヘルプ` などの定型語の場合：`command` (システムコマンド)
     - 上記以外の空でない文字列の場合：`question` (自然言語の質問、`is_natural_language_query = 1` となる)
 * **回答判定フラグ**:
   - `回答内容` に「ご質問の内容に関する情報が見つかりませんでした」が含まれる場合、`is_no_answer` を `1` に設定します。
   - `回答内容` に「お答えできません」が含まれる場合、`is_unsupported` を `1` に設定します。
 * **時間・処理速度メトリクス**:
-  - **対話開始日時 (`started_at_utc`)**: 対話グループ内の全イベントの `created_at_utc` の最小値。
-  - **対話完了日時 (`completed_at_utc`)**: 対話グループ内の全イベントから評価（`feedback`）イベントを除外した、最大 `created_at_utc`（評価を除いた最終処理完了時点）。
-  - **処理時間 (`latency_sec`)**: `completed_at_utc - started_at_utc` の総秒数（小数点第3位まで）。
+  - **対話開始日時 (`started_at_jst`)**: 対話グループ内の全イベントの `created_at_utc` の最小値をJSTに変換。
+  - **対話完了日時 (`completed_at_jst`)**: 対話グループ内の全イベントから評価（`feedback`）イベントを除外した、最大 `created_at_utc` をJSTに変換。
+  - **処理時間 (`latency_sec`)**: `completed_at_jst - started_at_jst` の総秒数（小数点第3位まで）。
 
 #### フェーズ5: 整合性検証
 - 同じ `message_id` が異なる `conversation_id` にまたがって衝突していないかなどを検証し、異常なパターンの警告メッセージ（`message_id collision` など）をマニフェストに追加します。
 
 ---
 
-## 5. 設定ファイル (`column_config.json`) による動的制御
+## 5. 設定ファイル (`config/column_config.json`) による動的制御
 
-最終的なエクセル「実施記録シート」の出力フォーマットは、[column_config.json](../column_config.json) によって定義されます。
+最終的なエクセル「実施記録シート」の出力フォーマットは、[config/column_config.json](../config/column_config.json) によって定義されます。
 
 ### 5.1 並び順 (Sort Order)
 エクセルの左から右への列の配置順は、**`column_config.json` 内におけるJSONオブジェクトの記述順**（配列の要素インデックス順）のまま反映されます。記述順を変更するだけで、プログラムのコードを変更することなく列の順序をカスタマイズできます。
@@ -313,5 +311,3 @@ graph TD
 * **No.**: `=ROW(A{row_num})-3` による自動連番。
 * **対象/対象外**: 設定された「質問/回答分類」の列を参照し、特定の分類（①や⑤）に合致する場合に `〇`、それ以外に `×` を出力。
 * **Hit判定**: 設定された「参照箇所①〜➉」の判定列を参照し、いずれかで検索キーワードとの部分一致が認められた場合（`〇`が立っている場合）に `〇` を出力。
-* **日付**: 「対話の開始日時（JST）」列の値を `YYYY/MM/DD` 形式のテキストにする数式。
-* **所属**: 「質問投入者（`user_name`）」をキーにして「社員マスタ」シートから所属組織名を逆引きする `VLOOKUP` 数式。

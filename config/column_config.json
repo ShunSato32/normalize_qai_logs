@@ -1,0 +1,536 @@
+[
+  {
+    "physical_name": "No.",
+    "japanese_name": "No.",
+    "description": "エクセル上の通し番号（行数に基づく数式）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "team_name",
+    "japanese_name": "チーム名",
+    "description": "会話が属するチーム名または会話場所の識別名",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "started_at_jst",
+    "japanese_name": "日時",
+    "description": "対話の開始日時（JST、日本標準時）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "interaction_no_in_session",
+    "japanese_name": "更問フラグ",
+    "description": "各セッション内で実行された何番目の対話かを表す連番（1から開始）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "user_name",
+    "japanese_name": "質問投入者",
+    "description": "質問を投稿したユーザー名（匿名化オプションが有効な場合はハッシュ値化）",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "user_selected_category",
+    "japanese_name": "選択カテゴリ",
+    "description": "ユーザー自身が選択したカテゴリ",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "predicted_category",
+    "japanese_name": "カテゴリ自動設定",
+    "description": "AI/システムによって予測されたカテゴリ",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "fist_category",
+    "japanese_name": "第一カテゴリ",
+    "description": "予測カテゴリの最上位階層（最初のレベル）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "question",
+    "japanese_name": "投入質問",
+    "description": "ユーザーが入力した質問の本文（自然言語クエリのみ、コマンド等は除外）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "answer",
+    "japanese_name": "回答内容",
+    "description": "システムまたはAIから返却された回答文",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_1",
+    "japanese_name": "参照文書①",
+    "description": "第1順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_1",
+    "japanese_name": "参考箇所①",
+    "description": "第1順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_1",
+    "japanese_name": "score①",
+    "description": "第1順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_2",
+    "japanese_name": "参照文書②",
+    "description": "第2順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_2",
+    "japanese_name": "参考箇所②",
+    "description": "第2順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_2",
+    "japanese_name": "score②",
+    "description": "第2順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_3",
+    "japanese_name": "参照文書➂",
+    "description": "第3順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_3",
+    "japanese_name": "参考箇所➂",
+    "description": "第3順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_3",
+    "japanese_name": "score③",
+    "description": "第3順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_4",
+    "japanese_name": "参照文書④",
+    "description": "第4順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_4",
+    "japanese_name": "参考箇所④",
+    "description": "第4順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_4",
+    "japanese_name": "score④",
+    "description": "第4順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_5",
+    "japanese_name": "参照文書⑤",
+    "description": "第5順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_5",
+    "japanese_name": "参考箇所⑤",
+    "description": "第5順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_5",
+    "japanese_name": "score⑤",
+    "description": "第5順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_6",
+    "japanese_name": "参照文書⑥",
+    "description": "第6順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_6",
+    "japanese_name": "参考箇所⑥",
+    "description": "第6順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_6",
+    "japanese_name": "score⑥",
+    "description": "第6順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_7",
+    "japanese_name": "参照文書⑦",
+    "description": "第7順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_7",
+    "japanese_name": "参考箇所⑦",
+    "description": "第7順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_7",
+    "japanese_name": "score⑦",
+    "description": "第7順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_8",
+    "japanese_name": "参照文書⑧",
+    "description": "第8順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_8",
+    "japanese_name": "参考箇所⑧",
+    "description": "第8順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_8",
+    "japanese_name": "score⑧",
+    "description": "第8順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_9",
+    "japanese_name": "参照文書➈",
+    "description": "第9順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_9",
+    "japanese_name": "参考箇所➈",
+    "description": "第9順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_9",
+    "japanese_name": "score➈",
+    "description": "第9順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_doc_10",
+    "japanese_name": "参照文書➉",
+    "description": "第10順位でヒットした検索結果の参照ファイル名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_text_10",
+    "japanese_name": "参考箇所➉",
+    "description": "第10順位でヒットした検索結果のテキスト抜粋",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "score_10",
+    "japanese_name": "score➉",
+    "description": "第10順位でヒットした検索結果の類似度スコア",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "qa_classification",
+    "japanese_name": "質問/回答 分類",
+    "description": "ビジネス分析・評価用の「質問/回答分類」列（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_target",
+    "japanese_name": "対象/ 対象外",
+    "description": "分析対象（〇）または対象外（×）を自動判定する数式列",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "feedback_rating",
+    "japanese_name": "回答評価",
+    "description": "ユーザーからの回答に対する評価（good, bad 等）",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "feedback_comment",
+    "japanese_name": "評価理由",
+    "description": "ユーザーが入力した評価に対するコメントや理由",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "ref_check_1",
+    "japanese_name": "参照箇所①",
+    "description": "第1順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_2",
+    "japanese_name": "参照箇所②",
+    "description": "第2順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_3",
+    "japanese_name": "参照箇所➂",
+    "description": "第3順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_4",
+    "japanese_name": "参照箇所④",
+    "description": "第4順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_5",
+    "japanese_name": "参照箇所⑤",
+    "description": "第5順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_6",
+    "japanese_name": "参照箇所⑥",
+    "description": "第6順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_7",
+    "japanese_name": "参照箇所⑦",
+    "description": "第7順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_8",
+    "japanese_name": "参照箇所⑧",
+    "description": "第8順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_9",
+    "japanese_name": "参照箇所➈",
+    "description": "第9順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "ref_check_10",
+    "japanese_name": "参照箇所➉",
+    "description": "第10順位の参照箇所に特定のキーワードが含まれているかの自動判定フラグ（数式による判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "has_training_data",
+    "japanese_name": "教師データ有無",
+    "description": "教師データの有無（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "keyword_1",
+    "japanese_name": "キーワード1",
+    "description": "分析用キーワード1（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "keyword_2",
+    "japanese_name": "キーワード2",
+    "description": "分析用キーワード2（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "keyword_3",
+    "japanese_name": "キーワード3",
+    "description": "分析用キーワード3（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "hit_judgment",
+    "japanese_name": "Hit判定",
+    "description": "検索結果内にキーワードが含まれていたかの判定（数式による自動判定）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "answer_judgment",
+    "japanese_name": "回答判定",
+    "description": "回答内容の判定結果（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "accuracy_judgment",
+    "japanese_name": "正答判定",
+    "description": "回答が正しかったかどうかの判定（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "analysis_comment",
+    "japanese_name": "分析コメント",
+    "description": "分析者によるコメント欄（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "error_cause",
+    "japanese_name": "原因",
+    "description": "エラーや誤回答の原因分類（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "action_plan",
+    "japanese_name": "対応方針",
+    "description": "今後の対応・改善方針（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "note",
+    "japanese_name": "備考",
+    "description": "備考欄（手動分析用空欄）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_natural_language_query",
+    "japanese_name": "集計対象",
+    "description": "ユーザーの入力が自然言語での質問かどうかを示すフラグ（1:はい, 0:いいえ）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_system_command",
+    "japanese_name": "システムコマンドフラグ",
+    "description": "ユーザーの入力がシステムコマンド（スラッシュコマンド等）かどうかを示すフラグ（1:はい, 0:いいえ）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_reset_request",
+    "japanese_name": "リセットフラグ",
+    "description": "ユーザーの入力が「リセット」指示かどうかを示すフラグ（1:はい, 0:いいえ）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_no_answer",
+    "japanese_name": "回答なしフラグ",
+    "description": "回答が見つからなかった（「回答なし」等）かどうかを示すフラグ（1:はい, 0:いいえ）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "has_error",
+    "japanese_name": "エラーフラグ",
+    "description": "エラーイベントが発生したかどうかを示すフラグ（true / false）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "error_message",
+    "japanese_name": "エラーメッセージ",
+    "description": "発生したエラーメッセージの内容",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_first_interaction_row",
+    "japanese_name": "行複製フラグ",
+    "description": "1つの対話（interaction）に対して複数行出力される場合、最初の行かどうかを示すフラグ（1:最初, 0:その他）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "retrieval_count",
+    "japanese_name": "検索ヒット件数",
+    "description": "検索処理でヒットした検索結果の総件数",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "feedback_count",
+    "japanese_name": "フィードバック件数",
+    "description": "この対話に紐づくフィードバックの総件数",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "source_files",
+    "japanese_name": "元csvファイル名",
+    "description": "対話の構成元となったソースCSVファイル名の一覧",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "completed_at_jst",
+    "japanese_name": "日時(応答完了)",
+    "description": "対話の完了日時（JST、日本標準時）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "latency_sec",
+    "japanese_name": "処理時間(秒)",
+    "description": "処理時間（秒単位、完了日時 - 開始日時）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "selected_function",
+    "japanese_name": "機能名",
+    "description": "システムによって選択された処理機能名",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "message_id",
+    "japanese_name": "メッセージID",
+    "description": "ユーザーの1回の問い合せ処理に対応するメッセージID（生ログ由来）",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "conversation_id",
+    "japanese_name": "会話ID",
+    "description": "一連の会話セッションを表す会話ID",
+    "is_system_defined": false
+  },
+  {
+    "physical_name": "reset_session_id",
+    "japanese_name": "会話リセットID",
+    "description": "会話リセット判定で区切られたリセットセッションID",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "reset_session_no",
+    "japanese_name": "リセットセッション番号",
+    "description": "会話内でリセットが実行された順番を表すセッション番号（1から開始）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "final_category",
+    "japanese_name": "final_category",
+    "description": "最終決定されたカテゴリ（ユーザー選択優先、予測フォールバック、または未分類）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "is_unclassified",
+    "japanese_name": "is_unclassified",
+    "description": "最終カテゴリが「未分類」かどうかを示すフラグ（1:未分類, 0:分類済）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "feedback_id",
+    "japanese_name": "feedback_id",
+    "description": "フィードバック情報の一意ID（対話キー + 連番）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "source_event_types",
+    "japanese_name": "source_event_types",
+    "description": "対話に含まれる生イベントのタイプシーケンス（例：user > assistant > tool > feedback）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "messageID",
+    "japanese_name": "messageID",
+    "description": "生ログ由来のmessage_id（エクセル書式保存用）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "interaction_id",
+    "japanese_name": "interaction_id",
+    "description": "message_id と conversation_id の衝突を避けるための対話一意キー（conversation_id::message_id）",
+    "is_system_defined": true
+  },
+  {
+    "physical_name": "unique_row_id",
+    "japanese_name": "一意の行ID",
+    "description": "一意の行ID（interaction_id と feedback_seq を結合）",
+    "is_system_defined": true
+  }
+]

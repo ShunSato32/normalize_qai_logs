@@ -34,8 +34,30 @@ def sessionize(interactions: List[Interaction], manifest: Manifest) -> List[Rese
         # Sessionize
         session_no = 1
         current_session_interactions: List[Interaction] = []
+        interaction_counter = 0
+        
+        # セッション内でのカテゴリ引き継ぎ用変数
+        active_user_selected_cat = ""
+        active_inferred_cat = ""
         
         for idx, interaction in enumerate(conv_interactions):
+            # カテゴリのセッション内引き継ぎ（フォワードプロパゲーション）
+            if interaction.user_selected_categories:
+                active_user_selected_cat = interaction.user_selected_categories
+            elif active_user_selected_cat:
+                interaction.user_selected_categories = active_user_selected_cat
+                
+            if interaction.inferred_category:
+                active_inferred_cat = interaction.inferred_category
+            elif active_inferred_cat:
+                interaction.inferred_category = active_inferred_cat
+                
+            # interaction.final_category を引き継ぎ後の値で同期
+            if interaction.user_selected_categories:
+                interaction.final_category = interaction.user_selected_categories.split(" | ")[-1]
+            elif interaction.inferred_category:
+                interaction.final_category = interaction.inferred_category
+
             current_session_interactions.append(interaction)
             
             # Format session id
@@ -44,7 +66,11 @@ def sessionize(interactions: List[Interaction], manifest: Manifest) -> List[Rese
             # Assign session info to interaction
             interaction.reset_session_id = session_id
             interaction.reset_session_no = session_no
-            interaction.interaction_no_in_session = len(current_session_interactions)
+            if interaction.is_command or interaction.interaction_type == "command":
+                interaction.interaction_no_in_session = "-"
+            else:
+                interaction.interaction_no_in_session = interaction_counter
+                interaction_counter += 1
             
             # Also backpropagate to raw events
             for e in interaction.events:
@@ -60,6 +86,9 @@ def sessionize(interactions: List[Interaction], manifest: Manifest) -> List[Rese
                 # Start new session
                 session_no += 1
                 current_session_interactions = []
+                interaction_counter = 0
+                active_user_selected_cat = ""
+                active_inferred_cat = ""
                 
         # If there are interactions left in the current session (meaning it didn't end with a reset)
         if current_session_interactions:

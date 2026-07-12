@@ -165,10 +165,13 @@ def build_integrated_rows(
             cat_src = "none"
         is_unclassified = 1 if final_cat == "未分類" else 0
         
-        # Segment predicted category to first level
-        first_category = ""
-        if pred_cat:
-            first_category = pred_cat.split(" > ")[0] if " > " in pred_cat else pred_cat
+        # Segment predicted category to first level and handle unclassified
+        if final_cat == "未分類":
+            pred_cat_out = "未分類"
+            first_category = "未分類"
+        else:
+            pred_cat_out = pred_cat
+            first_category = pred_cat.split(" > ")[0] if (pred_cat and " > " in pred_cat) else pred_cat
             
         # Determine user query extract variables
         is_nat_q = 1 if i.interaction_type == "question" else 0
@@ -182,8 +185,21 @@ def build_integrated_rows(
             output_row_id = f"{i.interaction_key}-FB{fb_seq:03d}"
             is_first = (t["is_first_interaction_row"] == 1)
             
+            if not is_first:
+                qa_class = ""
+                target_str = ""
+            elif is_sys_cmd:
+                qa_class = "④集計対象外"
+                target_str = "×"
+            elif i.is_no_answer:
+                qa_class = "①該当無"
+                target_str = "⚪︎"
+            else:
+                qa_class = "⑤その他"
+                target_str = "⚪︎"
+            
             row = {
-                "output_row_id": output_row_id,
+                "unique_row_id": output_row_id,
                 "interaction_id": i.interaction_key,
                 "message_id": i.message_id,
                 "conversation_id": i.conversation_id,
@@ -195,7 +211,7 @@ def build_integrated_rows(
                 # User and Query fields
                 "user_name": i.user_name,
                 "team_name": i.team_name,
-                "質問内容": i.question if is_first else "[追加評価]",
+                "question": i.question if is_first else "[追加評価]",
                 "user_content_raw": i.question if is_first else "",
                 "is_natural_language_query": is_nat_q if is_first else 0,
                 "is_reset_request": is_reset if is_first else 0,
@@ -203,23 +219,23 @@ def build_integrated_rows(
                 "is_system_command": is_sys_cmd if is_first else 0,
                 
                 # Datetimes & Latency
-                "started_at_utc": i.started_at_utc if is_first else "",
-                "completed_at_utc": i.ended_at_utc if is_first else "",
                 "started_at_jst": i.started_at_jst if is_first else "",
                 "completed_at_jst": i.ended_at_jst if is_first else "",
                 "latency_sec": i.response_latency_seconds if is_first else "",
                 
                 # Category Processing
                 "selected_function": i.selected_function if is_first else "",
-                "predicted_category": i.inferred_category if is_first else "",
+                "predicted_category": pred_cat_out if is_first else "",
                 "user_selected_category": i.user_selected_categories if is_first else "",
                 "fist_category": first_category if is_first else "",
                 "final_category": final_cat if is_first else "",
                 "category_source": cat_src if is_first else "",
                 "is_unclassified": is_unclassified if is_first else 0,
+                "qa_classification": qa_class,
+                "is_target": target_str,
                 
                 # Answer & Errors
-                "回答内容": i.answer if is_first else "",
+                "answer": i.answer if is_first else "",
                 "has_answer": (1 if i.answer else 0) if is_first else 0,
                 "is_no_answer": (1 if i.is_no_answer else 0) if is_first else 0,
                 "assistant_event_count": sum(1 for e in i.events if e.message_type == 'assistant') if is_first else 0,
