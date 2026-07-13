@@ -189,7 +189,13 @@ def parse_iso_datetime(dt_str: str) -> datetime:
 def load_target_categories(config_dir: str = "config") -> List[Dict[str, Any]]:
     path = os.path.join(config_dir, "target_categories.json")
     if not os.path.exists(path):
-        return []
+        # Try finding in parent directory (project root)
+        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        alt_path = os.path.join(project_root, config_dir, "target_categories.json")
+        if os.path.exists(alt_path):
+            path = alt_path
+        else:
+            return []
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)

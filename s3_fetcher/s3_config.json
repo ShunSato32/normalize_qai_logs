@@ -1,0 +1,18 @@
+{
+  "aws_profile": "default",
+  "aws_region": "ap-northeast-1",
+  "s3": {
+    "bucket_name": "your-company-qai-logs-bucket",
+    "source_prefix": "exports/daily_logs/",
+    "archive_folder_name": "archive/",
+    "file_extension_filter": ".csv"
+  },
+  "local": {
+    "download_destination_dir": "../input_csv",
+    "clear_destination_before_download": false
+  },
+  "archive_behavior": {
+    "append_timestamp_on_archive": true,
+    "archive_timestamp_format": "_%Y%m%d_%H%M%S"
+  }
+}

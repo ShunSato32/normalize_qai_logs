@@ -3,6 +3,12 @@ import sys
 import os
 import traceback
 
+# Ensure current script directory is in sys.path
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(script_dir)
+if script_dir not in sys.path:
+    sys.path.insert(0, script_dir)
+
 from core import Manifest
 from reader import read_raw_events
 from normalizer import normalize_events
@@ -23,7 +29,12 @@ def main():
     args = parser.parse_args()
     
     input_dir = args.INPUT_DIR
+    if not os.path.isabs(input_dir) and not os.path.exists(input_dir):
+        input_dir = os.path.join(project_root, input_dir)
+        
     output_dir = args.OUTPUT_DIR
+    if not os.path.isabs(output_dir) and not os.path.exists(output_dir):
+        output_dir = os.path.join(project_root, output_dir)
     
     if not os.path.exists(input_dir):
         print(f"Error: Input directory does not exist: {input_dir}", file=sys.stderr)
