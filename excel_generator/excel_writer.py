@@ -404,7 +404,19 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
 
 def write_integrated_to_excel(template_path: str, output_path: str, rows: List[Dict[str, Any]]):
     # Load template workbook
-    wb = openpyxl.load_workbook(template_path, data_only=False)
+    try:
+        wb = openpyxl.load_workbook(template_path, data_only=False)
+    except Exception as e:
+        if "BadZipFile" in type(e).__name__ or "not a zip file" in str(e).lower():
+            print(f"\n[エラー: テンプレートExcelファイルが破損しているか、Git LFSのポインターファイルのままです]", file=sys.stderr)
+            print(f"対象ファイル: {template_path}", file=sys.stderr)
+            print(f"【原因と対処手順】", file=sys.stderr)
+            print(f"  1. Git LFS (Large File Storage) ポインターの可能性: ", file=sys.stderr)
+            print(f"     別PCで 'git lfs pull' または 'git lfs install' を実行して実体ファイル(約993KB)を取得するか、", file=sys.stderr)
+            print(f"     元のPCから実体の【社名】実施記録分析シート.xlsxをコピーして上書き配置してください。", file=sys.stderr)
+            print(f"  2. Windowsの改行コード自動変換 (autocrlf) / IRM暗号化の可能性: ", file=sys.stderr)
+            print(f"     Git clone時にバイナリ破損しないよう .gitattributes が導入されました。ファイルが暗号化されていないかもご確認ください。\n", file=sys.stderr)
+        raise
     
     if "実施記録シート" not in wb.sheetnames:
         raise ValueError("Template Excel file must contain a worksheet named '実施記録シート'")
@@ -431,9 +443,21 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 physical_styles_cache[new_name] = style_dict
 
     # 2. Load column configuration dynamically
-    config_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config", "column_config.json")
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    config_paths_to_try = [
+        os.path.join(project_root, "config", "column_config.json"),
+        os.path.join(script_dir, "config", "column_config.json"),
+        "config/column_config.json"
+    ]
+    config_path = None
+    for p in config_paths_to_try:
+        if os.path.exists(p):
+            config_path = p
+            break
+
     active_columns = []
-    if os.path.exists(config_path):
+    if config_path and os.path.exists(config_path):
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 config_data = json.load(f)

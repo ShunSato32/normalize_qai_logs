@@ -1,0 +1,14 @@
+# Ensure auto-crlf does not corrupt Excel binary files or images
+*.xlsx binary
+*.xlsm binary
+*.xls binary
+*.zip binary
+*.png binary
+*.jpg binary
+*.pdf binary
+
+# Default behavior for text files
+*.py text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.txt text eol=lf

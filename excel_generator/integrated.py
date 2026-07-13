@@ -1,7 +1,100 @@
+import os
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from core import Interaction, ResetSession, Manifest, bool_to_str, JST
 from normalizer import safe_parse_similar_records
+
+_CACHED_CATEGORY_MAP = None
+_CACHED_TOP_LEVELS = None
+
+def _get_category_tree_map() -> Tuple[List[str], Dict[str, str]]:
+    global _CACHED_CATEGORY_MAP, _CACHED_TOP_LEVELS
+    if _CACHED_CATEGORY_MAP is not None and _CACHED_TOP_LEVELS is not None:
+        return _CACHED_TOP_LEVELS, _CACHED_CATEGORY_MAP
+        
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    paths = [
+        os.path.join(project_root, "config", "target_categories.json"),
+        os.path.join(script_dir, "config", "target_categories.json"),
+        "config/target_categories.json"
+    ]
+    
+    cat_data = []
+    for p in paths:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    cat_data = json.load(f)
+                    break
+            except Exception:
+                pass
+                
+    top_levels = []
+    node_to_top = {}
+    
+    def traverse(node: Dict[str, Any], top_level: str, current_path: List[str]):
+        name = node.get("name", "").strip()
+        if not name:
+            return
+        path_list = current_path + [name]
+        path_str = " > ".join(path_list)
+        
+        node_to_top[name] = top_level
+        node_to_top[path_str] = top_level
+        node_to_top["/".join(path_list)] = top_level
+        node_to_top[" | ".join(path_list)] = top_level
+        
+        for child in node.get("children", []):
+            traverse(child, top_level, path_list)
+            
+    for root_node in cat_data:
+        r_name = root_node.get("name", "").strip()
+        if r_name:
+            top_levels.append(r_name)
+            traverse(root_node, r_name, [])
+            
+    _CACHED_TOP_LEVELS = top_levels
+    _CACHED_CATEGORY_MAP = node_to_top
+    return top_levels, node_to_top
+
+def resolve_first_category_from_tree(cat_str: str) -> str:
+    if not cat_str or cat_str == "未分類":
+        return "未分類"
+        
+    top_levels, node_to_top = _get_category_tree_map()
+    
+    # 1. Exact match in top level list
+    if cat_str in top_levels:
+        return cat_str
+        
+    # 2. Check if starts with a known top level followed by separator
+    for tl in top_levels:
+        for sep in [" > ", " >", "> ", ">", "/", " | ", "｜"]:
+            if cat_str.startswith(tl + sep):
+                return tl
+                
+    # 3. Exact match in full tree node map
+    if cat_str in node_to_top:
+        return node_to_top[cat_str]
+        
+    # 4. Try leaf segment or parts
+    for sep in [" > ", " >", "> ", ">", "/", " | ", "｜"]:
+        if sep in cat_str:
+            parts = [p.strip() for p in cat_str.split(sep) if p.strip()]
+            # Try leaf first
+            if parts and parts[-1] in node_to_top:
+                return node_to_top[parts[-1]]
+            # Try first part
+            if parts and parts[0] in node_to_top:
+                return node_to_top[parts[0]]
+                
+    # 5. Fallback to simple split if no tree match found
+    first_part = cat_str.split(" > ")[0].strip()
+    if first_part in top_levels or first_part in node_to_top:
+        return node_to_top.get(first_part, first_part)
+        
+    return first_part if first_part else "未分類"
 
 def build_integrated_rows(
     interactions: List[Interaction],
@@ -165,13 +258,13 @@ def build_integrated_rows(
             cat_src = "none"
         is_unclassified = 1 if final_cat == "未分類" else 0
         
-        # Segment predicted category to first level and handle unclassified
+        # Segment predicted category to first level using target_categories.json mapping
         if final_cat == "未分類":
             pred_cat_out = "未分類"
             first_category = "未分類"
         else:
             pred_cat_out = pred_cat
-            first_category = pred_cat.split(" > ")[0] if (pred_cat and " > " in pred_cat) else pred_cat
+            first_category = resolve_first_category_from_tree(pred_cat or final_cat)
             
         # Determine user query extract variables
         is_nat_q = 1 if i.interaction_type == "question" else 0

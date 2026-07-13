@@ -14,7 +14,8 @@ def load_classification_rules(config_path: str = "config/system_commands.json") 
     }
     paths_to_check = [
         config_path,
-        os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path)
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path),
+        os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), config_path)
     ]
     for path in paths_to_check:
         if os.path.exists(path):
