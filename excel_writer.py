@@ -186,6 +186,216 @@ def parse_iso_datetime(dt_str: str) -> datetime:
     except Exception:
         return None
 
+def load_target_categories(config_dir: str = "config") -> List[Dict[str, Any]]:
+    path = os.path.join(config_dir, "target_categories.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+def flatten_category_tree(categories_json: List[Dict[str, Any]]):
+    top_level_names = []
+    all_tree_names = []
+    node_map = {}
+
+    def traverse(node, top_level_name, current_path):
+        name = node.get("name", "")
+        if not name:
+            return
+        path_str = " > ".join(current_path + [name]) if current_path else name
+        all_tree_names.append(path_str)
+        info = {"name": name, "full_path": path_str, "top_level": top_level_name}
+        node_map[name] = info
+        node_map[path_str] = info
+        node_map["/".join(current_path + [name])] = info
+        node_map[" | ".join(current_path + [name])] = info
+        for child in node.get("children", []):
+            traverse(child, top_level_name, current_path + [name])
+
+    for root_node in categories_json:
+        r_name = root_node.get("name", "")
+        if r_name:
+            top_level_names.append(r_name)
+            traverse(root_node, r_name, [])
+
+    return top_level_names, all_tree_names, node_map
+
+def aggregate_daily_summary(rows: List[Dict[str, Any]], top_level_names: List[str], all_tree_names: List[str], node_map: Dict[str, Dict[str, str]]):
+    daily_rows: Dict[str, List[Dict[str, Any]]] = {}
+    for r in rows:
+        dt_str = r.get("started_at_jst", "")
+        dt = parse_iso_datetime(dt_str)
+        if dt:
+            day_str = dt.strftime("%Y/%m/%d")
+        else:
+            if dt_str and len(dt_str) >= 10:
+                day_str = dt_str[:10].replace("-", "/")
+            else:
+                day_str = "日付不明"
+        if day_str not in daily_rows:
+            daily_rows[day_str] = []
+        daily_rows[day_str].append(r)
+
+    sorted_days = sorted(daily_rows.keys())
+    results = []
+    for day_str in sorted_days:
+        day_r = daily_rows[day_str]
+        q_rows = [r for r in day_r if (str(r.get("is_first_interaction_row")) in ("1", "True", "true") or r.get("is_first_interaction_row") == 1) and r.get("qa_classification") != "④集計対象外"]
+        if not q_rows and day_r:
+            q_rows = [r for r in day_r if r.get("qa_classification") != "④集計対象外"]
+        q_count = len(q_rows)
+        
+        users = set(r.get("user_name", "") for r in q_rows if r.get("user_name"))
+        user_count = len(users)
+        
+        c1 = len([r for r in q_rows if r.get("qa_classification") == "①該当無"])
+        c5 = len([r for r in q_rows if r.get("qa_classification") == "⑤その他"])
+        
+        bad_cnt = 0
+        good_cnt = 0
+        unset_cnt = 0
+        for r in q_rows:
+            fb = str(r.get("feedback_rating", "")).strip().lower()
+            if fb == "bad":
+                bad_cnt += 1
+            elif fb == "good":
+                good_cnt += 1
+            else:
+                unset_cnt += 1
+
+        top_counts = {name: 0 for name in top_level_names}
+        tree_counts = {name: 0 for name in all_tree_names}
+
+        for r in q_rows:
+            cat = (r.get("final_category") or r.get("user_selected_category") or 
+                   r.get("predicted_category") or r.get("fist_category") or "")
+            if not cat:
+                if "未分類" in node_map:
+                    cat = "未分類"
+                else:
+                    continue
+            info = node_map.get(cat)
+            if not info:
+                for sep in [" > ", " >", "> ", ">", "/", " | ", "｜"]:
+                    if sep in cat:
+                        leaf = cat.split(sep)[-1].strip()
+                        if leaf in node_map:
+                            info = node_map[leaf]
+                            break
+            if not info and cat in node_map:
+                info = node_map[cat]
+            if info:
+                t_level = info.get("top_level", "")
+                f_path = info.get("full_path", "")
+                if t_level in top_counts:
+                    top_counts[t_level] += 1
+                if f_path in tree_counts:
+                    tree_counts[f_path] += 1
+
+        results.append({
+            "day": day_str,
+            "q_count": q_count,
+            "user_count": user_count,
+            "c1": c1,
+            "c5": c5,
+            "bad": bad_cnt,
+            "good": good_cnt,
+            "unset": unset_cnt,
+            "top_counts": top_counts,
+            "tree_counts": tree_counts
+        })
+
+    return results
+
+def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
+    cats_json = load_target_categories()
+    top_names, tree_names, node_map = flatten_category_tree(cats_json)
+    added_headers = top_names + tree_names
+    daily_results = aggregate_daily_summary(rows, top_names, tree_names, node_map)
+
+    # 1. 集計詳細 (O列 / col 15 以降)
+    if "集計詳細" in wb.sheetnames:
+        ws_dt = wb["集計詳細"]
+        ref_cell = ws_dt.cell(row=2, column=14)
+        for idx, h_name in enumerate(added_headers):
+            col_idx = 15 + idx
+            cell = ws_dt.cell(row=2, column=col_idx, value=h_name)
+            if ref_cell and ref_cell.font:
+                cell.font = Font(name=ref_cell.font.name, size=ref_cell.font.size, bold=ref_cell.font.bold, color=ref_cell.font.color)
+            if idx < len(top_names):
+                cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+            else:
+                cell.fill = PatternFill(fill_type="solid", start_color="9BC2E6", end_color="9BC2E6")
+            if ref_cell and ref_cell.border:
+                cell.border = Border(left=ref_cell.border.left, right=ref_cell.border.right, top=ref_cell.border.top, bottom=ref_cell.border.bottom)
+            if ref_cell and ref_cell.alignment:
+                cell.alignment = Alignment(horizontal="center", vertical=ref_cell.alignment.vertical, wrap_text=True)
+
+        for r_idx, d_res in enumerate(daily_results, start=3):
+            ws_dt.cell(row=r_idx, column=1, value=d_res["day"])
+            ws_dt.cell(row=r_idx, column=2, value=d_res["q_count"])
+            ws_dt.cell(row=r_idx, column=3, value=d_res["user_count"])
+            ws_dt.cell(row=r_idx, column=4, value=d_res["c1"])
+            ws_dt.cell(row=r_idx, column=5, value=d_res["c5"])
+            ws_dt.cell(row=r_idx, column=6, value=f"=B{r_idx}")
+            ws_dt.cell(row=r_idx, column=7, value=f"=IF(F{r_idx}=0,0,(F{r_idx}-D{r_idx})/F{r_idx})")
+            ws_dt.cell(row=r_idx, column=8, value=d_res["bad"])
+            ws_dt.cell(row=r_idx, column=9, value=d_res["good"])
+            ws_dt.cell(row=r_idx, column=10, value=d_res["unset"])
+            ws_dt.cell(row=r_idx, column=11, value=f"=SUM(H{r_idx}:J{r_idx})")
+            ws_dt.cell(row=r_idx, column=12, value=f"=SUM(H{r_idx}:I{r_idx})")
+            ws_dt.cell(row=r_idx, column=13, value=f"=IF(B{r_idx}=0,0,L{r_idx}/B{r_idx})")
+            ws_dt.cell(row=r_idx, column=14, value=f"=IF(L{r_idx}=0,0,I{r_idx}/L{r_idx})")
+
+            for h_idx, top_name in enumerate(top_names):
+                col_idx = 15 + h_idx
+                ws_dt.cell(row=r_idx, column=col_idx, value=d_res["top_counts"].get(top_name, 0))
+            for h_idx, tree_name in enumerate(tree_names):
+                col_idx = 15 + len(top_names) + h_idx
+                ws_dt.cell(row=r_idx, column=col_idx, value=d_res["tree_counts"].get(tree_name, 0))
+
+            for col_i in (7, 13, 14):
+                c = ws_dt.cell(row=r_idx, column=col_i)
+                c.number_format = '0.0%'
+
+    # 2. 集計概要 (K列 / col 11 以降は第１カテゴリのグルーピング集計値だけ)
+    if "集計概要" in wb.sheetnames:
+        ws_ov = wb["集計概要"]
+        ref_cell = ws_ov.cell(row=2, column=10)
+        for idx, h_name in enumerate(top_names):
+            col_idx = 11 + idx
+            cell = ws_ov.cell(row=2, column=col_idx, value=h_name)
+            if ref_cell and ref_cell.font:
+                cell.font = Font(name=ref_cell.font.name, size=ref_cell.font.size, bold=ref_cell.font.bold, color=ref_cell.font.color)
+            cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+            if ref_cell and ref_cell.border:
+                cell.border = Border(left=ref_cell.border.left, right=ref_cell.border.right, top=ref_cell.border.top, bottom=ref_cell.border.bottom)
+            if ref_cell and ref_cell.alignment:
+                cell.alignment = Alignment(horizontal="center", vertical=ref_cell.alignment.vertical, wrap_text=True)
+
+        for r_idx, d_res in enumerate(daily_results, start=3):
+            ws_ov.cell(row=r_idx, column=1, value=d_res["day"])
+            ws_ov.cell(row=r_idx, column=2, value=f"=集計詳細!B{r_idx}")
+            ws_ov.cell(row=r_idx, column=3, value=f"=集計詳細!C{r_idx}")
+            ws_ov.cell(row=r_idx, column=4, value=f"=集計詳細!G{r_idx}")
+            ws_ov.cell(row=r_idx, column=5, value=f"=集計詳細!H{r_idx}")
+            ws_ov.cell(row=r_idx, column=6, value=f"=集計詳細!I{r_idx}")
+            ws_ov.cell(row=r_idx, column=7, value=f"=集計詳細!J{r_idx}")
+            ws_ov.cell(row=r_idx, column=8, value=f"=E{r_idx}+F{r_idx}")
+            ws_ov.cell(row=r_idx, column=9, value=f"=IF(B{r_idx}=0,0,H{r_idx}/B{r_idx})")
+            ws_ov.cell(row=r_idx, column=10, value=f"=IF(H{r_idx}=0,0,F{r_idx}/H{r_idx})")
+
+            for h_idx, top_name in enumerate(top_names):
+                col_idx = 11 + h_idx
+                ws_ov.cell(row=r_idx, column=col_idx, value=f"=集計詳細!{get_column_letter(15 + h_idx)}{r_idx}")
+
+            for col_i in (4, 9, 10):
+                c = ws_ov.cell(row=r_idx, column=col_i)
+                c.number_format = '0.0%'
+
 def write_integrated_to_excel(template_path: str, output_path: str, rows: List[Dict[str, Any]]):
     # Load template workbook
     wb = openpyxl.load_workbook(template_path, data_only=False)
@@ -402,7 +612,7 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 dict_key = key_map.get(pname, pname)
                 cell.value = row_data.get(dict_key, "")
                 
-            # 6. Apply copied styling (borders, fonts, fills) to the cell
+            # 6. Apply copied styling (borders, fonts) to the cell (preserve template fill)
             cached_style = physical_styles_cache.get(pname)
             if cached_style:
                 cell.font = Font(
@@ -412,11 +622,6 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                     italic=cached_style["font"].italic,
                     color=cached_style["font"].color,
                     underline=cached_style["font"].underline
-                )
-                cell.fill = PatternFill(
-                    fill_type=cached_style["fill"].fill_type,
-                    start_color=cached_style["fill"].start_color,
-                    end_color=cached_style["fill"].end_color
                 )
                 cell.border = Border(
                     left=cached_style["border"].left,
@@ -450,5 +655,9 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
         for pivot in ws_pivot._pivots:
             pivot.cache.cacheSource.worksheetSource.ref = f"B3:{col_letter_last}{last_row_index}"
             
-    # 10. Save workbook
+    # 10. Populate summary sheets (集計詳細 / 集計概要)
+    populate_summary_sheets(wb, rows)
+            
+    # 11. Save workbook
     wb.save(output_path)
+

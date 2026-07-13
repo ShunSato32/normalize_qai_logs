@@ -73,14 +73,14 @@ def main():
         
         # 9. Generate JST Timestamped Excel Workbook directly into output_dir
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        template_path = os.path.join(script_dir, "templates", "【生成AI】実施記録分析シート_20260610132229.xlsx")
+        template_path = os.path.join(script_dir, "templates", "【社名】実施記録分析シート.xlsx")
         
         if not os.path.exists(template_path):
             print(f"Warning: Template Excel file not found at {template_path}. Skipping Excel output generation.", file=sys.stderr)
         else:
             jst_tz = timezone(timedelta(hours=9))
             timestamp = datetime.now(jst_tz).strftime('%Y%m%d%H%M%S')
-            output_excel_name = f"【生成AI】実施記録分析シート_統合版_{timestamp}.xlsx"
+            output_excel_name = f"【社名】実施記録分析シート_統合版_{timestamp}.xlsx"
             output_excel_path = os.path.join(output_dir, output_excel_name)
             
             write_integrated_to_excel(template_path, output_excel_path, integrated_rows)

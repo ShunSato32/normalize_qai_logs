@@ -492,12 +492,6 @@
     "is_system_defined": true
   },
   {
-    "physical_name": "final_category",
-    "japanese_name": "final_category",
-    "description": "最終決定されたカテゴリ（ユーザー選択優先、予測フォールバック、または未分類）",
-    "is_system_defined": true
-  },
-  {
     "physical_name": "is_unclassified",
     "japanese_name": "is_unclassified",
     "description": "最終カテゴリが「未分類」かどうかを示すフラグ（1:未分類, 0:分類済）",
