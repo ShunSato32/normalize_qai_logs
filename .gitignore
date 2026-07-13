@@ -1,8 +1,15 @@
-# Ignore sample input and output directories
+# Ignore input and output directories
 sample_input/
 sample_output/
+output_run/
 
-# Python caching
+# Test files (excluded from sharing for runtime-only distribution)
+tests/
+.pytest_cache/
+
+# Python caching & Virtual environment
+.venv/
+venv/
 __pycache__/
 *.pyc
 

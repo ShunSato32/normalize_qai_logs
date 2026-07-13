@@ -66,10 +66,11 @@ python normalize_chatbot_logs.py ./input_csv ./output_run
 - **`config/column_config.json`**: Excel出力時の列の順番、ヘッダー表示名（物理名・日本語名）およびスタイル動的制御を定義します。
 - **`config/system_commands.json`**: チャットボットへのコマンド発話判定（`system_commands`）、回答なし判定フレーズ（`no_answer_phrases`）、非対応判定フレーズ（`unsupported_phrases`）のリストを管理します。
 
-## 自動テストの実行
+## 自動テストの実行（※開発者向け）
 ```bash
 python -m pytest tests/ -v
 ```
+*(※ `tests/` フォルダは開発・品質保証用です。ツールの実行のみを行う共有先のPCでは共有・実行不要です)*
 
 ## 既知の制約
 - サブディレクトリ内のCSVファイルは探索対象外です。
