@@ -225,7 +225,7 @@ erDiagram
 | | | `normalize_events` | `started_at_jst`, `completed_at_jst`, `latency_sec` (処理秒数の計算)<br>`質問内容`, `user_content_raw` (発話文の抽出)<br>`is_natural_language_query`, `is_reset_request`, `is_system_command` (ユーザー発話判定フラグ)<br>`selected_function`, `predicted_category`, `user_selected_category`, `fist_category` (予測・選択カテゴリ抽出)<br>`回答内容`, `has_answer`, `is_no_answer` (回答抽出と回答有無・回答なしフラグ)<br>`has_error`, `error_count`, `error_message` (エラー監査情報) |
 | **セッション分割（Sessionization）** | [sessionizer.py](../sessionizer.py) | `sessionize` | `reset_session_id` (リセット境界ごとの一意セッションID)<br>`reset_session_no` (リセットが実行された順番のセッション番号)<br>`interaction_no_in_session` (セッション内の対話連番) |
 | **データマージ・複製行処理（Integration）** | [integrated.py](../integrated.py) | `build_integrated_rows` | `unique_row_id` (対話IDと評価連番の結合ID)<br>`is_first_interaction_row` (初回対話行フラグ)<br>`is_latest_feedback` (最新評価フラグ)<br>`retrieval_01` 〜 `retrieval_10` (検索ヒット結果10件のJSON展開)<br>**2行目以降の複製行処理**: `質問内容` を `[追加評価]` に書き換え、その他の対話情報・メトリクス・検索結果をクリアする制御ロジック |
-| **エクセル数式セルの動的解決と書き込み** | [excel_writer.py](../excel_writer.py) | `write_integrated_to_excel` | `No.` (動的連番数式)<br>`対象/対象外` (分類に基づく対象フラグ数式)<br>各 `参照箇所①〜⑩` の判定および `Hit判定` の部分一致判定数式 |
+| **エクセル数式セルの動的解決と書き込み** | [excel_writer.py](../excel_writer.py) | `write_integrated_to_excel` | `No.` (動的連番数式)<br>`対象/対象外` (分類に基づく対象フラグ数式)<br>各 `参照箇所①〜⑩` のキーワード部分一致判定（キーワードを含まない場合は空文字 `""`）および `Hit判定` の自動判定数式<br>L列からAO列の文字左詰めアライメント適用 |
 
 ### 4.4 `normalize_events` 内部の段階的処理ロジックの詳細
 
@@ -309,5 +309,7 @@ graph TD
 エクセル内の以下のセルには自動計算数式（Excel Formula）が挿入されますが、列の並び順が変更されても、プログラムが参照先カラムのアルファベット記号（`K`や`CC`など）を**設定ファイルから動的に解決して数式を再構築**します。
 
 * **No.**: `=ROW(A{row_num})-3` による自動連番。
-* **対象/対象外**: 設定された「質問/回答分類」の列を参照し、特定の分類（①や⑤）に合致する場合に `〇`、それ以外に `×` を出力。
+* **対象/対象外**: 設定された「質問/回答分類」の列を参照し、特定の分類（①や⑤）に合致する場合に `◯`、それ以外に `×` を出力。
 * **Hit判定**: 設定された「参照箇所①〜➉」の判定列を参照し、いずれかで検索キーワードとの部分一致が認められた場合（`〇`が立っている場合）に `〇` を出力。
+* **配置制御（アライメント）**: テンプレートから引き継いだ書式を適用しつつ、L列からAO列（列インデックス 12〜41）については、視認性向上のため強制的に文字を左詰め（`horizontal="left"`）に設定。
+* **参照箇所①〜⑩（ref_check）のデフォルト値**: 指定キーワードがヒットしなかった場合の値を `"-"` から空文字列 `""` に変更し、データのないセルをクリアに表示。
