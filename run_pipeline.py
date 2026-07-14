@@ -7,6 +7,7 @@ def main():
     parser.add_argument("--skip-fetch", action="store_true", help="Skip S3 CSV fetching step and only run Excel normalizer.")
     parser.add_argument("--skip-excel", action="store_true", help="Skip Excel normalization step and only run S3 CSV fetch.")
     parser.add_argument("--config", type=str, default=None, help="Custom path to s3_config.json")
+    parser.add_argument("--no-template", action="store_true", help="Do not use template Excel file even if present")
     args = parser.parse_args()
 
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -40,7 +41,10 @@ def main():
         try:
             normalize_script = os.path.join(project_root, "excel_generator", "normalize_chatbot_logs.py")
             import subprocess
-            ret = subprocess.run([sys.executable, normalize_script], cwd=project_root)
+            cmd = [sys.executable, normalize_script]
+            if args.no_template:
+                cmd.append("--no-template")
+            ret = subprocess.run(cmd, cwd=project_root)
             if ret.returncode != 0:
                 print(f"[Pipeline Error] Excel generation failed with return code {ret.returncode}")
                 sys.exit(1)

@@ -316,7 +316,7 @@ def aggregate_daily_summary(rows: List[Dict[str, Any]], top_level_names: List[st
 
     return results
 
-def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
+def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]], use_template: bool = False):
     cats_json = load_target_categories()
     top_names, tree_names, node_map = flatten_category_tree(cats_json)
     added_headers = top_names + tree_names
@@ -327,33 +327,73 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
     font_bold = Font(name="Yu Gothic", size=10, bold=True)
     font_normal = Font(name="Yu Gothic", size=10)
 
+    # Clear existing template summary values if using template
+    if use_template:
+        if "集計詳細" in wb.sheetnames:
+            ws_dt = wb["集計詳細"]
+            for col in range(15, max(15, ws_dt.max_column + 1)):
+                ws_dt.cell(row=2, column=col).value = None
+            for r in range(3, max(3, ws_dt.max_row + 1)):
+                for c in range(1, ws_dt.max_column + 1):
+                    ws_dt.cell(row=r, column=c).value = None
+        if "集計概要" in wb.sheetnames:
+            ws_ov = wb["集計概要"]
+            for col in range(11, max(11, ws_ov.max_column + 1)):
+                ws_ov.cell(row=2, column=col).value = None
+            for r in range(3, max(3, ws_ov.max_row + 1)):
+                for c in range(1, ws_ov.max_column + 1):
+                    ws_ov.cell(row=r, column=c).value = None
+
     # 1. 集計詳細 (O列 / col 15 以降)
     if "集計詳細" in wb.sheetnames:
         ws_dt = wb["集計詳細"]
         
-        # Write fixed headers (cols 1 to 14)
-        fixed_headers_dt = [
-            "日付", "質問数", "UU", "該当無数", "その他数", 
-            "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
-            "評価無数", "評価総数", "有効評価総数", "評価率", "満足度"
-        ]
-        for c_idx, h_name in enumerate(fixed_headers_dt, start=1):
-            cell = ws_dt.cell(row=2, column=c_idx, value=h_name)
-            cell.font = font_bold
-            cell.border = border
-            cell.fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        # Write fixed headers if NOT using template
+        if not use_template:
+            fixed_headers_dt = [
+                "日付", "質問数", "UU", "該当無数", "その他数", 
+                "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
+                "評価無数", "評価総数", "有効評価総数", "評価率", "満足度"
+            ]
+            for c_idx, h_name in enumerate(fixed_headers_dt, start=1):
+                cell = ws_dt.cell(row=2, column=c_idx, value=h_name)
+                cell.font = font_bold
+                cell.border = border
+                cell.fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        for idx, h_name in enumerate(added_headers):
-            col_idx = 15 + idx
-            cell = ws_dt.cell(row=2, column=col_idx, value=h_name)
-            cell.font = font_bold
-            if idx < len(top_names):
-                cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
-            else:
-                cell.fill = PatternFill(fill_type="solid", start_color="9BC2E6", end_color="9BC2E6")
-            cell.border = border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        # Write dynamic headers
+        if use_template:
+            ref_cell_dt = ws_dt.cell(row=2, column=14)
+            for idx, h_name in enumerate(added_headers):
+                col_idx = 15 + idx
+                cell = ws_dt.cell(row=2, column=col_idx, value=h_name)
+                if ref_cell_dt:
+                    if ref_cell_dt.font:
+                        cell.font = Font(name=ref_cell_dt.font.name, size=ref_cell_dt.font.size, bold=ref_cell_dt.font.bold, color=ref_cell_dt.font.color)
+                    if ref_cell_dt.border:
+                        cell.border = Border(left=ref_cell_dt.border.left, right=ref_cell_dt.border.right, top=ref_cell_dt.border.top, bottom=ref_cell_dt.border.bottom)
+                if idx < len(top_names):
+                    cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+                else:
+                    cell.fill = PatternFill(fill_type="solid", start_color="9BC2E6", end_color="9BC2E6")
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        else:
+            for idx, h_name in enumerate(added_headers):
+                col_idx = 15 + idx
+                cell = ws_dt.cell(row=2, column=col_idx, value=h_name)
+                cell.font = font_bold
+                if idx < len(top_names):
+                    cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+                else:
+                    cell.fill = PatternFill(fill_type="solid", start_color="9BC2E6", end_color="9BC2E6")
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        # Style reference for data rows (load from row 3 column 1 if template is used)
+        ref_data_cell = None
+        if use_template:
+            ref_data_cell = ws_dt.cell(row=3, column=1)
 
         for r_idx, d_res in enumerate(daily_results, start=3):
             ws_dt.cell(row=r_idx, column=1, value=d_res["day"])
@@ -381,8 +421,15 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
             # Apply cell formatting for data rows
             for col_i in range(1, 15 + len(added_headers)):
                 c = ws_dt.cell(row=r_idx, column=col_i)
-                c.font = font_normal
-                c.border = border
+                if ref_data_cell:
+                    if ref_data_cell.font:
+                        c.font = Font(name=ref_data_cell.font.name, size=ref_data_cell.font.size, bold=ref_data_cell.font.bold, italic=ref_data_cell.font.italic, color=ref_data_cell.font.color)
+                    if ref_data_cell.border:
+                        c.border = Border(left=ref_data_cell.border.left, right=ref_data_cell.border.right, top=ref_data_cell.border.top, bottom=ref_data_cell.border.bottom)
+                else:
+                    c.font = font_normal
+                    c.border = border
+                
                 if col_i == 1:
                     c.alignment = Alignment(horizontal="center", vertical="center")
                 else:
@@ -395,25 +442,43 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
     if "集計概要" in wb.sheetnames:
         ws_ov = wb["集計概要"]
         
-        # Write fixed headers (cols 1 to 10)
-        fixed_headers_ov = [
-            "日付", "質問数", "UU", "解決率", "bad評価数", 
-            "good評価数", "評価無数", "評価総数", "評価率", "満足度"
-        ]
-        for c_idx, h_name in enumerate(fixed_headers_ov, start=1):
-            cell = ws_ov.cell(row=2, column=c_idx, value=h_name)
-            cell.font = font_bold
-            cell.border = border
-            cell.fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        # Write fixed headers if NOT using template
+        if not use_template:
+            fixed_headers_ov = [
+                "日付", "質問数", "UU", "解決率", "bad評価数", 
+                "good評価数", "評価無数", "評価総数", "評価率", "満足度"
+            ]
+            for c_idx, h_name in enumerate(fixed_headers_ov, start=1):
+                cell = ws_ov.cell(row=2, column=c_idx, value=h_name)
+                cell.font = font_bold
+                cell.border = border
+                cell.fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
 
-        for idx, h_name in enumerate(top_names):
-            col_idx = 11 + idx
-            cell = ws_ov.cell(row=2, column=col_idx, value=h_name)
-            cell.font = font_bold
-            cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
-            cell.border = border
-            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        if use_template:
+            ref_cell_ov = ws_ov.cell(row=2, column=10)
+            for idx, h_name in enumerate(top_names):
+                col_idx = 11 + idx
+                cell = ws_ov.cell(row=2, column=col_idx, value=h_name)
+                if ref_cell_ov:
+                    if ref_cell_ov.font:
+                        cell.font = Font(name=ref_cell_ov.font.name, size=ref_cell_ov.font.size, bold=ref_cell_ov.font.bold, color=ref_cell_ov.font.color)
+                    if ref_cell_ov.border:
+                        cell.border = Border(left=ref_cell_ov.border.left, right=ref_cell_ov.border.right, top=ref_cell_ov.border.top, bottom=ref_cell_ov.border.bottom)
+                cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        else:
+            for idx, h_name in enumerate(top_names):
+                col_idx = 11 + idx
+                cell = ws_ov.cell(row=2, column=col_idx, value=h_name)
+                cell.font = font_bold
+                cell.fill = PatternFill(fill_type="solid", start_color="A9D08E", end_color="A9D08E")
+                cell.border = border
+                cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+        ref_data_cell_ov = None
+        if use_template:
+            ref_data_cell_ov = ws_ov.cell(row=3, column=1)
 
         for r_idx, d_res in enumerate(daily_results, start=3):
             ws_ov.cell(row=r_idx, column=1, value=d_res["day"])
@@ -434,8 +499,15 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
             # Apply cell formatting for data rows
             for col_i in range(1, 11 + len(top_names)):
                 c = ws_ov.cell(row=r_idx, column=col_i)
-                c.font = font_normal
-                c.border = border
+                if ref_data_cell_ov:
+                    if ref_data_cell_ov.font:
+                        c.font = Font(name=ref_data_cell_ov.font.name, size=ref_data_cell_ov.font.size, bold=ref_data_cell_ov.font.bold, italic=ref_data_cell_ov.font.italic, color=ref_data_cell_ov.font.color)
+                    if ref_data_cell_ov.border:
+                        c.border = Border(left=ref_data_cell_ov.border.left, right=ref_data_cell_ov.border.right, top=ref_data_cell_ov.border.top, bottom=ref_data_cell_ov.border.bottom)
+                else:
+                    c.font = font_normal
+                    c.border = border
+                
                 if col_i == 1:
                     c.alignment = Alignment(horizontal="center", vertical="center")
                 else:
@@ -444,16 +516,54 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]]):
                 if col_i in (4, 9, 10):
                     c.number_format = '0.0%'
 
-def write_integrated_to_excel(output_path: str, rows: List[Dict[str, Any]]):
-    # Programmatically create a blank workbook
-    wb = openpyxl.Workbook()
-    # Remove default sheet
-    if "Sheet" in wb.sheetnames:
-        wb.remove(wb["Sheet"])
-    
-    ws = wb.create_sheet(title="実施記録シート")
-    wb.create_sheet(title="集計詳細")
-    wb.create_sheet(title="集計概要")
+def write_integrated_to_excel(template_path: str = None, output_path: str = None, rows: List[Dict[str, Any]] = None):
+    # Gracefully handle older signature write_integrated_to_excel(output_path, rows)
+    if isinstance(output_path, list) and rows is None:
+        rows = output_path
+        output_path = template_path
+        template_path = None
+
+    use_template = False
+    if template_path and os.path.exists(template_path):
+        use_template = True
+
+    if use_template:
+        wb = openpyxl.load_workbook(template_path, data_only=False)
+        if "実施記録シート" not in wb.sheetnames:
+            raise ValueError("Template Excel file must contain a worksheet named '実施記録シート'")
+        ws = wb["実施記録シート"]
+        
+        # Cache the styles from row 4 before clearing values
+        physical_styles_cache = {}
+        for idx, orig_header in enumerate(TEMPLATE_HEADERS):
+            col_idx = idx + 2
+            if col_idx <= ws.max_column:
+                cell = ws.cell(row=4, column=col_idx)
+                style_dict = {
+                    "font": cell.font,
+                    "fill": cell.fill,
+                    "border": cell.border,
+                    "alignment": cell.alignment,
+                    "number_format": cell.number_format
+                }
+                physical_styles_cache[orig_header] = style_dict
+                new_name = RENAMED_COLUMNS.get(orig_header)
+                if new_name:
+                    physical_styles_cache[new_name] = style_dict
+
+        # Clear all values from row 4 to the end of the sheet
+        max_row = ws.max_row
+        max_col = ws.max_column
+        for r in range(4, max_row + 1):
+            for c in range(1, max_col + 1):
+                ws.cell(row=r, column=c).value = None
+    else:
+        wb = openpyxl.Workbook()
+        if "Sheet" in wb.sheetnames:
+            wb.remove(wb["Sheet"])
+        ws = wb.create_sheet(title="実施記録シート")
+        wb.create_sheet(title="集計詳細")
+        wb.create_sheet(title="集計概要")
     
     # 2. Load column configuration dynamically
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -495,17 +605,26 @@ def write_integrated_to_excel(output_path: str, rows: List[Dict[str, Any]]):
     # 4. Overwrite Row 3 headers from Column B (index 2) onwards
     thin_side = Side(style='thin', color='D3D3D3')
     border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
-    header_font = Font(name="Yu Gothic", size=10, bold=True)
-    header_fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
-
-    for idx, (pname, jname) in enumerate(active_columns):
-        col_idx = idx + 2
-        cell = ws.cell(row=3, column=col_idx)
-        cell.value = jname
-        cell.font = header_font
-        cell.fill = header_fill
-        cell.border = border
-        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    
+    if use_template:
+        for idx, (pname, jname) in enumerate(active_columns):
+            col_idx = idx + 2
+            cell = ws.cell(row=3, column=col_idx)
+            cell.value = jname
+        # Clear any leftover headers beyond the active columns
+        for col_idx in range(2 + len(active_columns), max_col + 1):
+            ws.cell(row=3, column=col_idx).value = None
+    else:
+        header_font = Font(name="Yu Gothic", size=10, bold=True)
+        header_fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
+        for idx, (pname, jname) in enumerate(active_columns):
+            col_idx = idx + 2
+            cell = ws.cell(row=3, column=col_idx)
+            cell.value = jname
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = border
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         
     # 5. Populate rows from row 4 onwards
     last_row_index = 3 + len(rows)
@@ -654,29 +773,58 @@ def write_integrated_to_excel(output_path: str, rows: List[Dict[str, Any]]):
                 dict_key = key_map.get(pname, pname)
                 cell.value = row_data.get(dict_key, "")
                 
-            # Apply styling directly to the cell
-            cell.font = Font(name="Yu Gothic", size=10)
-            cell.border = border
-            
-            # Check wrap alignment
-            wrap_alignment = (pname in WRAP_COLS)
-            horizontal_align = "center"
-            if 12 <= col_idx <= 41:
-                horizontal_align = "left"
-            cell.alignment = Alignment(
-                horizontal=horizontal_align,
-                vertical="center",
-                wrap_text=wrap_alignment
-            )
-            
-            # Keep number format unless overridden
-            if cell.number_format == 'General':
-                if pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
-                    cell.number_format = 'yyyy/mm/dd hh:mm:ss'
-                elif pname == "latency_sec":
-                    cell.number_format = '0.000'
-                elif pname.startswith("score_"):
-                    cell.number_format = '0.000000'
+            # Apply styling
+            if use_template:
+                cached_style = physical_styles_cache.get(pname)
+                if cached_style:
+                    cell.font = Font(
+                        name=cached_style["font"].name,
+                        size=cached_style["font"].size,
+                        bold=cached_style["font"].bold,
+                        italic=cached_style["font"].italic,
+                        color=cached_style["font"].color,
+                        underline=cached_style["font"].underline
+                    )
+                    cell.border = Border(
+                        left=cached_style["border"].left,
+                        right=cached_style["border"].right,
+                        top=cached_style["border"].top,
+                        bottom=cached_style["border"].bottom
+                    )
+                    
+                    wrap_alignment = cached_style["alignment"].wrap_text or (pname in WRAP_COLS)
+                    horizontal_align = cached_style["alignment"].horizontal
+                    if 12 <= col_idx <= 41:
+                        horizontal_align = "left"
+                    cell.alignment = Alignment(
+                        horizontal=horizontal_align,
+                        vertical=cached_style["alignment"].vertical,
+                        wrap_text=wrap_alignment
+                    )
+                    
+                    if cell.number_format == 'General':
+                        cell.number_format = cached_style["number_format"]
+            else:
+                cell.font = Font(name="Yu Gothic", size=10)
+                cell.border = border
+                
+                wrap_alignment = (pname in WRAP_COLS)
+                horizontal_align = "center"
+                if 12 <= col_idx <= 41:
+                    horizontal_align = "left"
+                cell.alignment = Alignment(
+                    horizontal=horizontal_align,
+                    vertical="center",
+                    wrap_text=wrap_alignment
+                )
+                
+                if cell.number_format == 'General':
+                    if pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
+                        cell.number_format = 'yyyy/mm/dd hh:mm:ss'
+                    elif pname == "latency_sec":
+                        cell.number_format = '0.000'
+                    elif pname.startswith("score_"):
+                        cell.number_format = '0.000000'
                     
     # 7. Apply Autofilter
     col_letter_last = get_column_letter(1 + len(active_columns))
@@ -685,8 +833,15 @@ def write_integrated_to_excel(output_path: str, rows: List[Dict[str, Any]]):
     # 8. Apply Freeze Panes
     ws.freeze_panes = "A4"
     
+    # 9. Update all pivot cache range definitions (Only if template is used)
+    if use_template:
+        for sheet_name in wb.sheetnames:
+            ws_pivot = wb[sheet_name]
+            for pivot in ws_pivot._pivots:
+                pivot.cache.cacheSource.worksheetSource.ref = f"B3:{col_letter_last}{last_row_index}"
+                
     # 10. Populate summary sheets (集計詳細 / 集計概要)
-    populate_summary_sheets(wb, rows)
+    populate_summary_sheets(wb, rows, use_template=use_template)
             
     # 11. Save workbook
     wb.save(output_path)

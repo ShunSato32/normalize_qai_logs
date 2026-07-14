@@ -25,6 +25,7 @@ def main():
     parser.add_argument("OUTPUT_DIR", nargs="?", default="output_run", help="Directory to save the normalized output (default: output_run)")
     parser.add_argument("--anonymize-users", action="store_true", help="Anonymize user names")
     parser.add_argument("--strict", action="store_true", help="Fail if any input file has errors")
+    parser.add_argument("--no-template", action="store_true", help="Do not use template Excel file even if present")
     
     args = parser.parse_args()
     
@@ -88,7 +89,22 @@ def main():
         output_excel_name = f"【社名】実施記録分析シート_統合版_{timestamp}.xlsx"
         output_excel_path = os.path.join(output_dir, output_excel_name)
         
-        write_integrated_to_excel(output_excel_path, integrated_rows)
+        template_path = None
+        if not args.no_template:
+            template_path = os.path.join(script_dir, "templates", "【社名】実施記録分析シート.xlsx")
+            if not os.path.exists(template_path):
+                template_path = None
+                print("Warning: Template Excel file not found. Generating Excel programmatically without template.", file=sys.stderr)
+        
+        if template_path:
+            try:
+                write_integrated_to_excel(template_path, output_excel_path, integrated_rows)
+            except Exception as e:
+                print(f"Warning: Failed to load template ({e}). Falling back to programmatic Excel generation.", file=sys.stderr)
+                write_integrated_to_excel(None, output_excel_path, integrated_rows)
+        else:
+            write_integrated_to_excel(None, output_excel_path, integrated_rows)
+            
         print(f"Excel output created at: {output_excel_path}")
             
         # Validation checks
