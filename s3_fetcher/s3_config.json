@@ -2,8 +2,8 @@
   "aws_profile": "default",
   "aws_region": "ap-northeast-1",
   "s3": {
-    "bucket_name": "your-company-qai-logs-bucket",
-    "source_prefix": "exports/daily_logs/",
+    "bucket_name": "prod-aibot-vantiq",
+    "source_prefix": "conversation_log/b-env/your_navi_qai_/",
     "archive_folder_name": "archive/",
     "file_extension_filter": ".csv"
   },
@@ -12,7 +12,7 @@
     "clear_destination_before_download": false
   },
   "archive_behavior": {
-    "append_timestamp_on_archive": true,
+    "append_timestamp_on_archive": false,
     "archive_timestamp_format": "_%Y%m%d_%H%M%S"
   }
 }
