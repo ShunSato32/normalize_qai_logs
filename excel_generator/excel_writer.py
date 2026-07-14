@@ -521,7 +521,7 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 else:
                     # References "qa_classification" (CC in default)
                     q_a_class_col = col_letters.get("qa_classification", "CC")
-                    cell.value = f'=IF(OR(LEFT({q_a_class_col}{row_num},1)="①", LEFT({q_a_class_col}{row_num},1)="⑤"), "⚪︎", "×")'
+                    cell.value = f'=IF(OR(LEFT({q_a_class_col}{row_num},1)="①", LEFT({q_a_class_col}{row_num},1)="⑤"), "◯", "×")'
             elif pname.startswith("ref_check_") and len(pname) > 10:
                 try:
                     rank = int(pname[10:])
@@ -531,7 +531,7 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 kw1_col = col_letters.get("keyword_1", "CT")
                 kw2_col = col_letters.get("keyword_2", "CU")
                 kw3_col = col_letters.get("keyword_3", "CV")
-                cell.value = f'=IF(OR(AND(${kw1_col}{row_num}<>"",ISNUMBER(SEARCH(${kw1_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw2_col}{row_num}<>"",ISNUMBER(SEARCH(${kw2_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw3_col}{row_num}<>"",ISNUMBER(SEARCH(${kw3_col}{row_num}, {ref_desc_col}{row_num})))),"〇","-")'
+                cell.value = f'=IF(OR(AND(${kw1_col}{row_num}<>"",ISNUMBER(SEARCH(${kw1_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw2_col}{row_num}<>"",ISNUMBER(SEARCH(${kw2_col}{row_num}, {ref_desc_col}{row_num}))),AND(${kw3_col}{row_num}<>"",ISNUMBER(SEARCH(${kw3_col}{row_num}, {ref_desc_col}{row_num})))),"〇","")'
             elif pname == "hit_judgment":
                 check_cols = []
                 for k in range(1, 11):
@@ -662,8 +662,11 @@ def write_integrated_to_excel(template_path: str, output_path: str, rows: List[D
                 
                 # Check wrap alignment
                 wrap_alignment = cached_style["alignment"].wrap_text or (pname in WRAP_COLS)
+                horizontal_align = cached_style["alignment"].horizontal
+                if 12 <= col_idx <= 41:
+                    horizontal_align = "left"
                 cell.alignment = Alignment(
-                    horizontal=cached_style["alignment"].horizontal,
+                    horizontal=horizontal_align,
                     vertical=cached_style["alignment"].vertical,
                     wrap_text=wrap_alignment
                 )

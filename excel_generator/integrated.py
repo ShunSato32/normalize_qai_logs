@@ -286,10 +286,10 @@ def build_integrated_rows(
                 target_str = "×"
             elif i.is_no_answer:
                 qa_class = "①該当無"
-                target_str = "⚪︎"
+                target_str = "◯"
             else:
                 qa_class = "⑤その他"
-                target_str = "⚪︎"
+                target_str = "◯"
             
             row = {
                 "unique_row_id": output_row_id,
