@@ -49,7 +49,7 @@ normalize_qai_logs/
 pip install openpyxl
 
 # または仮想環境 (.venv) を作成してインストールする場合
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install openpyxl
 ```
@@ -63,28 +63,28 @@ pip install openpyxl
 S3からの新しいログCSVの自動ダウンロード → S3上でのアーカイブ移動 → ローカルでのエクセルシート自動生成までを自動で一気通貫実行します。
 
 ```bash
-python3 run_pipeline.py
+python run_pipeline.py
 ```
 
 ### B. 各ステップの個別実行・分割実行
 
 #### S3からのCSV取得・移動のみを実行する場合
 ```bash
-python3 run_pipeline.py --skip-excel
+python run_pipeline.py --skip-excel
 # または直接スクリプトを実行:
-python3 s3_fetcher/fetch_csv.py
+python s3_fetcher/fetch_csv.py
 ```
 
 #### ローカル (input_csv/) のCSVファイルのエクセル化のみを実行する場合
 ```bash
-python3 run_pipeline.py --skip-fetch
+python run_pipeline.py --skip-fetch
 # または直接スクリプトを実行:
-python3 excel_generator/normalize_chatbot_logs.py
+python excel_generator/normalize_chatbot_logs.py
 ```
 
 ※ 入力ディレクトリや出力ディレクトリを明示的に指定してエクセル化を実行したい場合は以下のように指定可能です：
 ```bash
-python3 excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --strict
+python excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --strict
 ```
 
 ---
