@@ -11,7 +11,7 @@ if current_dir not in sys.path:
 
 from s3_utils import list_s3_files, download_s3_file, archive_s3_file
 
-def run_s3_fetch(config_path: Optional[str] = None) -> Dict[str, Any]:
+def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = None) -> Dict[str, Any]:
     """
     Execute S3 CSV fetch and archive workflow based on config file.
     Returns summary dict of downloaded and archived files.
@@ -40,7 +40,8 @@ def run_s3_fetch(config_path: Optional[str] = None) -> Dict[str, Any]:
     ext_filter = s3_cfg.get("file_extension_filter", ".csv")
     
     local_cfg = config.get("local", {})
-    dest_dir = local_cfg.get("download_destination_dir", "../input_csv")
+    if not dest_dir:
+        dest_dir = local_cfg.get("download_destination_dir", "../input_csv")
     if not os.path.isabs(dest_dir):
         dest_dir = os.path.abspath(os.path.join(current_dir, dest_dir))
         
