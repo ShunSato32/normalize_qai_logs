@@ -1,0 +1,7 @@
+{
+  "file_server": {
+    "enabled": false,
+    "destination_path": "",
+    "fail_on_copy_error": false
+  }
+}

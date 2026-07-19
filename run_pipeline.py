@@ -65,6 +65,47 @@ def main():
     else:
         print("\n--- [Step 2] Skipped Excel Generation (--skip-excel) ---")
 
+    # Step 3: Copy to File Server
+    import json
+    common_cfg_path = os.path.join(project_root, "config", "common_config.json")
+    if os.path.exists(common_cfg_path):
+        fs_config = {}
+        try:
+            with open(common_cfg_path, "r", encoding="utf-8") as f:
+                common_config = json.load(f)
+            fs_config = common_config.get("file_server", {})
+            if fs_config.get("enabled", False):
+                dest_base = fs_config.get("destination_path", "")
+                if dest_base:
+                    print("\n--- [Step 3] Copying input and output logs to file server ---")
+                    print(f"File Server Path: {dest_base}")
+                    
+                    import shutil
+                    dest_input_dir = os.path.join(dest_base, "input_csv", folder_name)
+                    dest_output_dir = os.path.join(dest_base, "output_run", folder_name)
+                    
+                    # Ensure parent paths exist
+                    os.makedirs(os.path.dirname(dest_input_dir), exist_ok=True)
+                    os.makedirs(os.path.dirname(dest_output_dir), exist_ok=True)
+                    
+                    if os.path.exists(input_dir):
+                        print(f"Copying input logs: {input_dir} -> {dest_input_dir}")
+                        shutil.copytree(input_dir, dest_input_dir, dirs_exist_ok=True)
+                    else:
+                        print(f"Warning: Input logs directory not found: {input_dir}")
+                        
+                    if os.path.exists(output_dir):
+                        print(f"Copying output logs: {output_dir} -> {dest_output_dir}")
+                        shutil.copytree(output_dir, dest_output_dir, dirs_exist_ok=True)
+                    else:
+                        print(f"Warning: Output logs directory not found: {output_dir}")
+                        
+                    print("Copying to file server completed successfully.")
+        except Exception as e:
+            print(f"[Pipeline Error] Failed to copy logs to file server: {e}", file=sys.stderr)
+            if fs_config.get("fail_on_copy_error", False):
+                sys.exit(1)
+
     print("\n=====================================================")
     print("   All automated pipeline steps completed successfully! ")
     print("=====================================================")
