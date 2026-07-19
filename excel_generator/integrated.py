@@ -181,7 +181,7 @@ def build_integrated_rows(
                 "feedback_count": 0,
                 "is_latest_feedback": 0,
                 "is_first_interaction_row": 1,
-                "feedback_rating": "",
+                "feedback_rating": "未設定",
                 "feedback_comment": "",
                 "feedback_at_utc": "",
                 "feedback_at_jst": ""
@@ -192,13 +192,16 @@ def build_integrated_rows(
                 fb_at_utc = fb.created_at_utc.strftime('%Y-%m-%dT%H:%M:%S+00:00') if fb.created_at_utc else ""
                 fb_at_jst = fb.created_at_jst.strftime('%Y-%m-%dT%H:%M:%S+09:00') if fb.created_at_jst else ""
                 fb_seq = idx + 1
+                rating_str = fb.feedback_rating or ""
+                rating_clean = rating_str.strip().lower()
+                rating_display = rating_str if rating_clean in ("good", "bad") else "未設定"
                 row_templates.append({
                     "feedback_id": f"{i.interaction_key}-FB{fb_seq:03d}",
                     "feedback_seq": fb_seq,
                     "feedback_count": feedback_count,
                     "is_latest_feedback": 1 if fb_seq == feedback_count else 0,
                     "is_first_interaction_row": 1 if idx == 0 else 0,
-                    "feedback_rating": fb.feedback_rating or "",
+                    "feedback_rating": rating_display,
                     "feedback_comment": fb.feedback_comment or "",
                     "feedback_at_utc": fb_at_utc,
                     "feedback_at_jst": fb_at_jst

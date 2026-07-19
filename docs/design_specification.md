@@ -160,7 +160,7 @@ erDiagram
 | | `predicted_category` | `true` | システムが推論したカテゴリ（`predicted`）を格納。 |
 | | `fist_category` | `true` | `predicted_category` を ` > ` で分割した第1階層を抽出。 |
 | | `final_category` | `true` | **優先順位ルール適用**: 1. `user_selected_category` (最終選択値) があれば採用。2. なければ `predicted_category` を採用。3. いずれもなければ「未分類」とする。 |
-| `feedback_rating`| `feedback_rating` | `false` | ユーザーの回答評価値（`good` / `bad`等、エクセルでは「回答評価」と表記）。 |
+| `feedback_rating`| `feedback_rating` | `false` | ユーザーの回答評価値（`good` / `bad`。これら以外（空文字含む）の場合は「未設定」と表記、エクセルでは「回答評価」と表記）。 |
 | `feedback_comment`| `feedback_comment` | `false` | ユーザーのコメント本文（エクセルでは「評価理由」と表記）。 |
 | `similar_records` | `retrieval_01` 〜 `retrieval_10` | `true` | リスト内の検索ヒット情報を解析し、上位10件分を固定 of JSONテキストカラム（`rank`/`score`/`filename`/`content`/`metadata` を内包）として横持ち展開。 |
 
