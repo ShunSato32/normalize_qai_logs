@@ -17,7 +17,7 @@ from sessionizer import sessionize
 from analytics import compute_overview, compute_daily, compute_category, compute_session_distribution, collect_feedback_events
 from integrated import build_integrated_rows
 from writer import write_analytics, write_manifest
-from excel_writer import write_integrated_to_excel, parse_iso_datetime
+from excel_writer import write_integrated_to_excel, parse_iso_datetime, load_target_categories, flatten_category_tree, aggregate_daily_summary
 from datetime import datetime, timezone, timedelta
 
 def main():
@@ -281,6 +281,121 @@ def main():
             print(f"CSV output created at: {output_csv_path}")
         except Exception as csv_err:
             print(f"Warning: Failed to create output CSV: {csv_err}", file=sys.stderr)
+        
+        # 9.6 Always write Summary Details (集計詳細) as CSV too (flat value format)
+        output_dt_csv_name = f"【社名】実施記録分析シート_集計詳細_{timestamp}.csv"
+        output_dt_csv_path = os.path.join(output_dir, output_dt_csv_name)
+        
+        try:
+            cats_json = load_target_categories()
+            top_names, tree_names, node_map = flatten_category_tree(cats_json)
+            added_headers = top_names + tree_names
+            daily_results = aggregate_daily_summary(integrated_rows, top_names, tree_names, node_map)
+            
+            fixed_headers_dt = [
+                "日付", "質問数", "UU", "該当無数", "その他数", 
+                "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
+                "評価無数", "評価総数", "有効評価総数", "評価率", "満足度"
+            ]
+            full_headers_dt = fixed_headers_dt + added_headers
+            
+            with open(output_dt_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(full_headers_dt)
+                
+                for d_res in daily_results:
+                    day = d_res["day"]
+                    q_count = d_res["q_count"]
+                    user_count = d_res["user_count"]
+                    c1 = d_res["c1"]
+                    c5 = d_res["c5"]
+                    
+                    valid_q = q_count
+                    coverage = (valid_q - c1) / valid_q if valid_q > 0 else 0.0
+                    
+                    bad = d_res["bad"]
+                    good = d_res["good"]
+                    unset = d_res["unset"]
+                    
+                    total_fb = bad + good + unset
+                    valid_fb = bad + good
+                    
+                    fb_rate = valid_fb / q_count if q_count > 0 else 0.0
+                    satisfaction = good / valid_fb if valid_fb > 0 else 0.0
+                    
+                    # Formatted as percentage strings
+                    coverage_str = f"{coverage:.1%}"
+                    fb_rate_str = f"{fb_rate:.1%}"
+                    satisfaction_str = f"{satisfaction:.1%}"
+                    
+                    row = [
+                        day, q_count, user_count, c1, c5,
+                        valid_q, coverage_str, bad, good, unset,
+                        total_fb, valid_fb, fb_rate_str, satisfaction_str
+                    ]
+                    
+                    for top_name in top_names:
+                        row.append(d_res["top_counts"].get(top_name, 0))
+                    for tree_name in tree_names:
+                        row.append(d_res["tree_counts"].get(tree_name, 0))
+                        
+                    writer.writerow(row)
+            print(f"CSV output created at: {output_dt_csv_path}")
+        except Exception as dt_err:
+            print(f"Warning: Failed to create Summary Details CSV: {dt_err}", file=sys.stderr)
+            traceback.print_exc()
+
+        # 9.7 Always write Summary Overview (集計概要) as CSV too (flat value format)
+        output_ov_csv_name = f"【社名】実施記録分析シート_集計概要_{timestamp}.csv"
+        output_ov_csv_path = os.path.join(output_dir, output_ov_csv_name)
+        
+        try:
+            fixed_headers_ov = [
+                "日付", "質問数", "UU", "解決率", "bad評価数", 
+                "good評価数", "評価無数", "評価総数", "評価率", "満足度"
+            ]
+            full_headers_ov = fixed_headers_ov + top_names
+            
+            with open(output_ov_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(full_headers_ov)
+                
+                for d_res in daily_results:
+                    day = d_res["day"]
+                    q_count = d_res["q_count"]
+                    user_count = d_res["user_count"]
+                    c1 = d_res["c1"]
+                    
+                    solve_rate = (q_count - c1) / q_count if q_count > 0 else 0.0
+                    
+                    bad = d_res["bad"]
+                    good = d_res["good"]
+                    unset = d_res["unset"]
+                    
+                    total_fb = bad + good + unset
+                    valid_fb = bad + good
+                    
+                    fb_rate = valid_fb / q_count if q_count > 0 else 0.0
+                    satisfaction = good / valid_fb if valid_fb > 0 else 0.0
+                    
+                    # Formatted as percentage strings
+                    solve_rate_str = f"{solve_rate:.1%}"
+                    fb_rate_str = f"{fb_rate:.1%}"
+                    satisfaction_str = f"{satisfaction:.1%}"
+                    
+                    row = [
+                        day, q_count, user_count, solve_rate_str, bad,
+                        good, unset, total_fb, fb_rate_str, satisfaction_str
+                    ]
+                    
+                    for top_name in top_names:
+                        row.append(d_res["top_counts"].get(top_name, 0))
+                        
+                    writer.writerow(row)
+            print(f"CSV output created at: {output_ov_csv_path}")
+        except Exception as ov_err:
+            print(f"Warning: Failed to create Summary Overview CSV: {ov_err}", file=sys.stderr)
+            traceback.print_exc()
         
         # Validation checks
         if len(raw_events) != manifest.counts["raw_event_count"]:
