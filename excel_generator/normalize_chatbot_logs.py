@@ -96,9 +96,11 @@ def main():
                 template_path = None
                 print("Warning: Template Excel file not found. Generating Excel programmatically without template.", file=sys.stderr)
         
+        use_temp_flag = False
         if template_path:
             try:
                 write_integrated_to_excel(template_path, output_excel_path, integrated_rows)
+                use_temp_flag = True
             except Exception as e:
                 print(f"Warning: Failed to load template ({e}). Falling back to programmatic Excel generation.", file=sys.stderr)
                 write_integrated_to_excel(None, output_excel_path, integrated_rows)
@@ -106,6 +108,56 @@ def main():
             write_integrated_to_excel(None, output_excel_path, integrated_rows)
             
         print(f"Excel output created at: {output_excel_path}")
+        
+        # 9.5 If template is NOT used (forced or fallback), also write integrated rows as CSV
+        if not use_temp_flag:
+            output_csv_name = f"【社名】実施記録分析シート_統合版_{timestamp}.csv"
+            output_csv_path = os.path.join(output_dir, output_csv_name)
+            
+            # Load column configurations
+            config_file_path = os.path.join(project_root, "config", "column_config.json")
+            active_columns = []
+            if os.path.exists(config_file_path):
+                try:
+                    with open(config_file_path, "r", encoding="utf-8") as f:
+                        config_data = json.load(f)
+                    for item in config_data:
+                        pname = item.get("physical_name")
+                        jname = item.get("japanese_name") or pname
+                        if pname:
+                            active_columns.append((pname, jname))
+                except Exception:
+                    pass
+            
+            if not active_columns:
+                from excel_writer import HEADERS
+                active_columns = [(h, h) for h in HEADERS]
+                
+            import csv
+            try:
+                with open(output_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    # Write header
+                    writer.writerow([jname for pname, jname in active_columns])
+                    
+                    # Write rows
+                    for row_idx, row_data in enumerate(integrated_rows, start=1):
+                        row_values = []
+                        is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
+                        for pname, jname in active_columns:
+                            if pname == "No.":
+                                val = row_idx
+                            elif pname == "qa_classification" and is_sys_cmd and not row_data.get("qa_classification"):
+                                val = "④集計対象外"
+                            elif pname == "is_target" and is_sys_cmd:
+                                val = "×"
+                            else:
+                                val = row_data.get(pname, "")
+                            row_values.append(val)
+                        writer.writerow(row_values)
+                print(f"CSV output created at: {output_csv_path}")
+            except Exception as csv_err:
+                print(f"Warning: Failed to create output CSV: {csv_err}", file=sys.stderr)
             
         # Validation checks
         if len(raw_events) != manifest.counts["raw_event_count"]:
