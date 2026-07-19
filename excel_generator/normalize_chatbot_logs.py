@@ -17,7 +17,7 @@ from sessionizer import sessionize
 from analytics import compute_overview, compute_daily, compute_category, compute_session_distribution, collect_feedback_events
 from integrated import build_integrated_rows
 from writer import write_analytics, write_manifest
-from excel_writer import write_integrated_to_excel
+from excel_writer import write_integrated_to_excel, parse_iso_datetime
 from datetime import datetime, timezone, timedelta
 
 def main():
@@ -147,6 +147,17 @@ def main():
                 from excel_writer import HEADERS
                 active_columns = [(h, h) for h in HEADERS]
                 
+            # user_name 列のインデックスを求めてアルファベットに変換する（departmentのVLOOKUP用）
+            user_name_col_letter = "K" # デフォルト
+            try:
+                from openpyxl.utils import get_column_letter
+                for idx, (pn, jn) in enumerate(active_columns):
+                    if pn == "user_name":
+                        user_name_col_letter = get_column_letter(idx + 2) # エクセル上でB列から開始するため idx+2
+                        break
+            except Exception:
+                pass
+                
             import csv
             try:
                 with open(output_csv_path, "w", encoding="utf-8-sig", newline="") as f:
@@ -158,15 +169,93 @@ def main():
                     for row_idx, row_data in enumerate(integrated_rows, start=1):
                         row_values = []
                         is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
+                        
+                        # 1. Parse retrievals from retrieval_xx columns
+                        parsed_retrievals = {}
+                        for rank in range(1, 11):
+                            col_name = f"retrieval_{rank:02d}"
+                            json_str = row_data.get(col_name)
+                            filename = ""
+                            content = ""
+                            score_val = ""
+                            if json_str:
+                                try:
+                                    data = json.loads(json_str)
+                                    filename = data.get("filename") or data.get("fileName") or data.get("display_name") or ""
+                                    content = data.get("content", "")
+                                    s = data.get("score")
+                                    if s is not None and s != "":
+                                        score_val = float(s)
+                                except Exception:
+                                    pass
+                            parsed_retrievals[f"ref_doc_{rank}"] = filename
+                            parsed_retrievals[f"ref_text_{rank}"] = content
+                            parsed_retrievals[f"score_{rank}"] = score_val
+                            
+                        # 2. Check keywords against retrieved content
+                        ref_checks = {}
+                        kw1 = str(row_data.get("keyword_1", "")).strip()
+                        kw2 = str(row_data.get("keyword_2", "")).strip()
+                        kw3 = str(row_data.get("keyword_3", "")).strip()
+                        any_hit = False
+                        for rank in range(1, 11):
+                            text = parsed_retrievals[f"ref_text_{rank}"]
+                            hit = False
+                            if text:
+                                for kw in (kw1, kw2, kw3):
+                                    if kw and kw in text:
+                                        hit = True
+                                        break
+                            ref_checks[f"ref_check_{rank}"] = "〇" if hit else ""
+                            if hit:
+                                any_hit = True
+                                
                         for pname, jname in active_columns:
                             if pname == "No.":
                                 val = row_idx
-                            elif pname == "qa_classification" and is_sys_cmd and not row_data.get("qa_classification"):
-                                val = "④集計対象外"
-                            elif pname == "is_target" and is_sys_cmd:
-                                val = "×"
+                            elif pname == "qa_classification":
+                                val = row_data.get("qa_classification", "")
+                                if is_sys_cmd and not val:
+                                    val = "④集計対象外"
+                            elif pname == "is_target":
+                                if is_sys_cmd:
+                                    val = "×"
+                                else:
+                                    q_class = row_data.get("qa_classification", "")
+                                    if q_class and (q_class.startswith("①") or q_class.startswith("⑤")):
+                                        val = "◯"
+                                    else:
+                                        val = "×"
+                            elif pname.startswith("ref_doc_") and len(pname) > 8:
+                                val = parsed_retrievals.get(pname, "")
+                            elif pname.startswith("ref_text_") and len(pname) > 9:
+                                val = parsed_retrievals.get(pname, "")
+                            elif pname.startswith("score_") and len(pname) > 6:
+                                score_val = parsed_retrievals.get(pname, "")
+                                val = f"{score_val:.6f}" if isinstance(score_val, float) else score_val
+                            elif pname.startswith("ref_check_") and len(pname) > 10:
+                                val = ref_checks.get(pname, "")
+                            elif pname == "hit_judgment":
+                                val = "〇" if any_hit else ""
+                            elif pname == "date_jst":
+                                started_jst = row_data.get("started_at_jst", "")
+                                if started_jst and len(started_jst) >= 10:
+                                    val = started_jst[:10].replace("-", "/")
+                                else:
+                                    val = ""
+                            elif pname == "department":
+                                # Row index in Excel JST sheet starts at 4 (row_idx + 3)
+                                val = f'=VLOOKUP({user_name_col_letter}{row_idx+3},社員マスタ!C:D,2,0)'
+                            elif pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
+                                val_str = row_data.get(pname, "")
+                                if val_str:
+                                    dt = parse_iso_datetime(val_str)
+                                    val = dt.strftime('%Y/%m/%d %H:%M:%S') if dt else val_str
+                                else:
+                                    val = ""
                             else:
                                 val = row_data.get(pname, "")
+                                
                             row_values.append(val)
                         writer.writerow(row_values)
                 print(f"CSV output created at: {output_csv_path}")
