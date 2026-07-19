@@ -1,6 +1,7 @@
 import argparse
 import sys
 import os
+import json
 import traceback
 
 # Ensure current script directory is in sys.path
@@ -114,10 +115,20 @@ def main():
             output_csv_name = f"【社名】実施記録分析シート_統合版_{timestamp}.csv"
             output_csv_path = os.path.join(output_dir, output_csv_name)
             
-            # Load column configurations
-            config_file_path = os.path.join(project_root, "config", "column_config.json")
+            # Load column configurations dynamically
+            config_paths_to_try = [
+                os.path.join(project_root, "config", "column_config.json"),
+                os.path.join(script_dir, "config", "column_config.json"),
+                "config/column_config.json"
+            ]
+            config_file_path = None
+            for p in config_paths_to_try:
+                if os.path.exists(p):
+                    config_file_path = p
+                    break
+
             active_columns = []
-            if os.path.exists(config_file_path):
+            if config_file_path:
                 try:
                     with open(config_file_path, "r", encoding="utf-8") as f:
                         config_data = json.load(f)
@@ -126,8 +137,11 @@ def main():
                         jname = item.get("japanese_name") or pname
                         if pname:
                             active_columns.append((pname, jname))
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(f"Warning: Failed to load column_config.json inside CSV generator: {e}", file=sys.stderr)
+                    traceback.print_exc()
+            else:
+                print("Warning: column_config.json not found for CSV generator. Falling back to default headers.", file=sys.stderr)
             
             if not active_columns:
                 from excel_writer import HEADERS
