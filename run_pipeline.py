@@ -2,6 +2,29 @@ import os
 import sys
 import argparse
 
+def resolve_config_path(config_path):
+    if os.path.exists(config_path):
+        return config_path
+    
+    # Check corresponding template path
+    dir_name = os.path.dirname(config_path)
+    base_name = os.path.basename(config_path)
+    name, ext = os.path.splitext(base_name)
+    template_path = os.path.join(dir_name, f"{name}_template{ext}")
+    
+    if os.path.exists(template_path):
+        try:
+            import shutil
+            if dir_name:
+                os.makedirs(dir_name, exist_ok=True)
+            shutil.copyfile(template_path, config_path)
+            print(f"Initialized active config file from template: {config_path}")
+            return config_path
+        except Exception as e:
+            print(f"Warning: Failed to copy template {template_path} to {config_path}: {e}", file=sys.stderr)
+            return template_path
+    return config_path
+
 def main():
     parser = argparse.ArgumentParser(description="YourNavi-QAI Analytics End-to-End Automation Pipeline")
     parser.add_argument("--skip-fetch", action="store_true", help="Skip S3 CSV fetching step and only run Excel normalizer.")
@@ -36,6 +59,7 @@ def main():
         try:
             from fetch_csv import run_s3_fetch
             cfg_path = args.config if args.config else os.path.join(s3_fetcher_dir, "s3_config.json")
+            cfg_path = resolve_config_path(cfg_path)
             res = run_s3_fetch(config_path=cfg_path, dest_dir=input_dir)
             if res.get("status") == "error":
                 print("[Pipeline Error] S3 fetch step encountered an error.")
@@ -68,6 +92,7 @@ def main():
     # Step 3: Copy to File Server
     import json
     common_cfg_path = os.path.join(project_root, "config", "common_config.json")
+    common_cfg_path = resolve_config_path(common_cfg_path)
     if os.path.exists(common_cfg_path):
         fs_config = {}
         try:

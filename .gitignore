@@ -18,3 +18,10 @@ __pycache__/
 
 # Log data inputs
 input_csv/
+
+# Configuration files (only templates are shared via Git, active copies are local-only)
+config/column_config.json
+config/system_commands.json
+config/target_categories.json
+config/common_config.json
+s3_fetcher/s3_config.json

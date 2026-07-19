@@ -188,14 +188,28 @@ def parse_iso_datetime(dt_str: str) -> datetime:
 
 def load_target_categories(config_dir: str = "config") -> List[Dict[str, Any]]:
     path = os.path.join(config_dir, "target_categories.json")
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     if not os.path.exists(path):
         # Try finding in parent directory (project root)
-        project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         alt_path = os.path.join(project_root, config_dir, "target_categories.json")
         if os.path.exists(alt_path):
             path = alt_path
-        else:
-            return []
+            
+    if not os.path.exists(path):
+        dir_name = os.path.dirname(path)
+        base_name = os.path.basename(path)
+        name, ext = os.path.splitext(base_name)
+        template_path = os.path.join(dir_name, f"{name}_template{ext}")
+        if os.path.exists(template_path):
+            try:
+                import shutil
+                os.makedirs(dir_name, exist_ok=True)
+                shutil.copyfile(template_path, path)
+                print(f"Initialized active config file from template: {path}")
+            except Exception as e:
+                import sys
+                print(f"Warning: Failed to copy template {template_path} to {path}: {e}", file=sys.stderr)
+                path = template_path
     try:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -578,6 +592,26 @@ def write_integrated_to_excel(template_path: str = None, output_path: str = None
         if os.path.exists(p):
             config_path = p
             break
+
+    if not config_path:
+        for p in config_paths_to_try:
+            dir_name = os.path.dirname(p)
+            base_name = os.path.basename(p)
+            name, ext = os.path.splitext(base_name)
+            template_path = os.path.join(dir_name, f"{name}_template{ext}")
+            if os.path.exists(template_path):
+                try:
+                    import shutil
+                    os.makedirs(dir_name, exist_ok=True)
+                    shutil.copyfile(template_path, p)
+                    print(f"Initialized active config file from template: {p}")
+                    config_path = p
+                    break
+                except Exception as e:
+                    import sys
+                    print(f"Warning: Failed to copy template {template_path} to {p}: {e}", file=sys.stderr)
+                    config_path = template_path
+                    break
 
     active_columns = []
     if config_path and os.path.exists(config_path):

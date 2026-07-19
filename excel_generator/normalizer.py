@@ -17,25 +17,52 @@ def load_classification_rules(config_path: str = "config/system_commands.json") 
         os.path.join(os.path.dirname(os.path.abspath(__file__)), config_path),
         os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), config_path)
     ]
+    active_path = None
     for path in paths_to_check:
         if os.path.exists(path):
-            try:
-                with open(path, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        return {
-                            "system_commands": data.get("system_commands", defaults["system_commands"]),
-                            "no_answer_phrases": data.get("no_answer_phrases", defaults["no_answer_phrases"]),
-                            "unsupported_phrases": data.get("unsupported_phrases", defaults["unsupported_phrases"])
-                        }
-                    elif isinstance(data, list):
-                        return {
-                            "system_commands": data,
-                            "no_answer_phrases": defaults["no_answer_phrases"],
-                            "unsupported_phrases": defaults["unsupported_phrases"]
-                        }
-            except Exception:
-                pass
+            active_path = path
+            break
+            
+    if not active_path:
+        # Try template fallbacks
+        for path in paths_to_check:
+            dir_name = os.path.dirname(path)
+            base_name = os.path.basename(path)
+            name, ext = os.path.splitext(base_name)
+            template_path = os.path.join(dir_name, f"{name}_template{ext}")
+            if os.path.exists(template_path):
+                try:
+                    import shutil
+                    if dir_name:
+                        os.makedirs(dir_name, exist_ok=True)
+                    shutil.copyfile(template_path, path)
+                    print(f"Initialized active config file from template: {path}")
+                    active_path = path
+                    break
+                except Exception as e:
+                    import sys
+                    print(f"Warning: Failed to copy template {template_path} to {path}: {e}", file=sys.stderr)
+                    active_path = template_path
+                    break
+                    
+    if active_path:
+        try:
+            with open(active_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return {
+                        "system_commands": data.get("system_commands", defaults["system_commands"]),
+                        "no_answer_phrases": data.get("no_answer_phrases", defaults["no_answer_phrases"]),
+                        "unsupported_phrases": data.get("unsupported_phrases", defaults["unsupported_phrases"])
+                    }
+                elif isinstance(data, list):
+                    return {
+                        "system_commands": data,
+                        "no_answer_phrases": defaults["no_answer_phrases"],
+                        "unsupported_phrases": defaults["unsupported_phrases"]
+                    }
+        except Exception:
+            pass
     return defaults
 
 def load_system_commands(config_path: str = "config/system_commands.json") -> List[str]:

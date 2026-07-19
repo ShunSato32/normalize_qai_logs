@@ -21,14 +21,39 @@ def _get_category_tree_map() -> Tuple[List[str], Dict[str, str]]:
     ]
     
     cat_data = []
+    config_path = None
     for p in paths:
         if os.path.exists(p):
-            try:
-                with open(p, "r", encoding="utf-8") as f:
-                    cat_data = json.load(f)
+            config_path = p
+            break
+            
+    if not config_path:
+        # Try template fallbacks
+        for p in paths:
+            dir_name = os.path.dirname(p)
+            base_name = os.path.basename(p)
+            name, ext = os.path.splitext(base_name)
+            template_path = os.path.join(dir_name, f"{name}_template{ext}")
+            if os.path.exists(template_path):
+                try:
+                    import shutil
+                    os.makedirs(dir_name, exist_ok=True)
+                    shutil.copyfile(template_path, p)
+                    print(f"Initialized active config file from template: {p}")
+                    config_path = p
                     break
-            except Exception:
-                pass
+                except Exception as e:
+                    import sys
+                    print(f"Warning: Failed to copy template {template_path} to {p}: {e}", file=sys.stderr)
+                    config_path = template_path
+                    break
+                    
+    if config_path:
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                cat_data = json.load(f)
+        except Exception:
+            pass
                 
     top_levels = []
     node_to_top = {}

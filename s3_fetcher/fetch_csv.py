@@ -20,6 +20,23 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
         config_path = os.path.join(current_dir, "s3_config.json")
         
     print(f"=== Starting S3 Fetcher ===")
+    
+    if not os.path.exists(config_path):
+        dir_name = os.path.dirname(config_path)
+        base_name = os.path.basename(config_path)
+        name, ext = os.path.splitext(base_name)
+        template_path = os.path.join(dir_name, f"{name}_template{ext}")
+        if os.path.exists(template_path):
+            try:
+                import shutil
+                if dir_name:
+                    os.makedirs(dir_name, exist_ok=True)
+                shutil.copyfile(template_path, config_path)
+                print(f"Initialized active config file from template: {config_path}")
+            except Exception as e:
+                print(f"Warning: Failed to copy template {template_path} to {config_path}: {e}", file=sys.stderr)
+                config_path = template_path
+                
     print(f"Config path: {config_path}")
     
     if not os.path.exists(config_path):

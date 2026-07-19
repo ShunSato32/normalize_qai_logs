@@ -126,6 +126,27 @@ def main():
                 if os.path.exists(p):
                     config_file_path = p
                     break
+            
+            if not config_file_path:
+                # Try template fallbacks
+                for p in config_paths_to_try:
+                    dir_name = os.path.dirname(p)
+                    base_name = os.path.basename(p)
+                    name, ext = os.path.splitext(base_name)
+                    template_path = os.path.join(dir_name, f"{name}_template{ext}")
+                    if os.path.exists(template_path):
+                        try:
+                            import shutil
+                            if dir_name:
+                                os.makedirs(dir_name, exist_ok=True)
+                            shutil.copyfile(template_path, p)
+                            print(f"Initialized active config file from template: {p}")
+                            config_file_path = p
+                            break
+                        except Exception as e:
+                            print(f"Warning: Failed to copy template {template_path} to {p}: {e}", file=sys.stderr)
+                            config_file_path = template_path
+                            break
 
             active_columns = []
             if config_file_path:
