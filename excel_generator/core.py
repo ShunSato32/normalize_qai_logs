@@ -1,9 +1,48 @@
 import hashlib
+import json
+import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone, timedelta
 from typing import Any, Dict, List, Optional
 
 JST = timezone(timedelta(hours=9), 'JST')
+
+def load_common_config() -> Dict[str, Any]:
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    config_paths_to_try = [
+        os.path.join(project_root, "config", "common_config.json"),
+        os.path.join(script_dir, "config", "common_config.json"),
+        os.path.join(script_dir, "..", "config", "common_config.json"),
+        "config/common_config.json"
+    ]
+    for p in config_paths_to_try:
+        if os.path.exists(p):
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        dir_name = os.path.dirname(p)
+        base_name = os.path.basename(p)
+        name, ext = os.path.splitext(base_name)
+        template_path = os.path.join(dir_name, f"{name}_template{ext}")
+        if os.path.exists(template_path):
+            try:
+                with open(template_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception:
+                pass
+    return {}
+
+def load_excluded_users() -> set:
+    cfg = load_common_config()
+    raw = cfg.get("excluded_user", [])
+    if isinstance(raw, list):
+        return set(str(u).strip() for u in raw if str(u).strip())
+    elif isinstance(raw, str) and raw.strip():
+        return {raw.strip()}
+    return set()
 
 @dataclass
 class RawEvent:

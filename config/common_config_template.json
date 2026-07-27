@@ -1,4 +1,5 @@
 {
+  "excluded_user": [],
   "file_server": {
     "enabled": false,
     "destination_path": "",

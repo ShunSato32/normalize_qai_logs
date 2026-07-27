@@ -1,7 +1,7 @@
 import os
 import json
 from typing import List, Dict, Any, Tuple
-from core import Interaction, ResetSession, Manifest, bool_to_str, JST
+from core import Interaction, ResetSession, Manifest, bool_to_str, JST, load_excluded_users
 from normalizer import safe_parse_similar_records
 
 _CACHED_CATEGORY_MAP = None
@@ -128,10 +128,13 @@ def build_integrated_rows(
 ) -> List[Dict[str, Any]]:
     # Map reset_session_id to session details
     session_map: Dict[str, ResetSession] = {s.reset_session_id: s for s in sessions}
+    excluded_users = load_excluded_users()
     
     integrated_rows: List[Dict[str, Any]] = []
     
     for i in interactions:
+        if (i.user_name or '').strip() in excluded_users:
+            continue
         # 1. Extract session metadata
         session = session_map.get(i.reset_session_id)
         session_date_jst = session.session_date_jst if session else ""

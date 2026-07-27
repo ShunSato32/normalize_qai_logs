@@ -4,7 +4,7 @@ import sys
 from datetime import datetime, timezone, timedelta
 from typing import List, Generator
 
-from core import RawEvent, Manifest, hash_user_name, JST
+from core import RawEvent, Manifest, hash_user_name, JST, load_excluded_users
 
 # OLE/IRM file signature
 OLE_SIGNATURE = bytes([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
@@ -49,6 +49,7 @@ def discover_csv_files(input_dir: str) -> List[str]:
 
 def read_raw_events(input_dir: str, manifest: Manifest, anonymize: bool) -> List[RawEvent]:
     csv_files = discover_csv_files(input_dir)
+    excluded_users = load_excluded_users()
     
     raw_events: List[RawEvent] = []
     
@@ -111,11 +112,14 @@ def read_raw_events(input_dir: str, manifest: Manifest, anonymize: bool) -> List
         manifest.counts["readable_file_count"] += 1
         
         for row_num, row in enumerate(reader, start=2): # 1 is header
+            user_name = (row.get('user_name') or '').strip()
+            if user_name and user_name in excluded_users:
+                continue
+                
             team_name = (row.get('team_name') or '').strip()
             conversation_id = (row.get('conversation_id') or '').strip()
             message_type = (row.get('message_type') or '').strip()
             content = (row.get('content') or '').strip()
-            user_name = (row.get('user_name') or '').strip()
             category = (row.get('category') or '').strip()
             similar_records = (row.get('similar_records') or '').strip()
             feedback_rating = (row.get('feedback_rating') or '').strip()
