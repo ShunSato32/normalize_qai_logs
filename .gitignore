@@ -2,6 +2,7 @@
 sample_input/
 sample_output/
 output_run/
+datas/
 
 # Test files (excluded from sharing for runtime-only distribution)
 tests/

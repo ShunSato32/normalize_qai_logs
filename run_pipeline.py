@@ -45,13 +45,14 @@ def main():
     day_abbrs = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     folder_name = now_jst.strftime(f"%Y%m%d_{day_abbrs[now_jst.weekday()]}")
 
-    input_dir = os.path.join(project_root, "input_csv", folder_name)
-    output_dir = os.path.join(project_root, "output_run", folder_name)
+    data_dir = os.path.join(project_root, "datas", folder_name)
+    input_dir = data_dir
+    output_dir = data_dir
 
     print("=====================================================")
     print("      YourNavi-QAI End-to-End Analytics Pipeline     ")
     print("=====================================================")
-    print(f"Target execution directory: {folder_name}")
+    print(f"Target execution directory: {data_dir}")
 
     # Step 1: S3 Fetch CSV & Archive
     if not args.skip_fetch:
@@ -102,28 +103,18 @@ def main():
             if fs_config.get("enabled", False):
                 dest_base = fs_config.get("destination_path", "")
                 if dest_base:
-                    print("\n--- [Step 3] Copying input and output logs to file server ---")
+                    print("\n--- [Step 3] Copying log data to file server ---")
                     print(f"File Server Path: {dest_base}")
                     
                     import shutil
-                    dest_input_dir = os.path.join(dest_base, "input_csv", folder_name)
-                    dest_output_dir = os.path.join(dest_base, "output_run", folder_name)
+                    dest_data_dir = os.path.join(dest_base, "datas", folder_name)
+                    os.makedirs(os.path.dirname(dest_data_dir), exist_ok=True)
                     
-                    # Ensure parent paths exist
-                    os.makedirs(os.path.dirname(dest_input_dir), exist_ok=True)
-                    os.makedirs(os.path.dirname(dest_output_dir), exist_ok=True)
-                    
-                    if os.path.exists(input_dir):
-                        print(f"Copying input logs: {input_dir} -> {dest_input_dir}")
-                        shutil.copytree(input_dir, dest_input_dir, dirs_exist_ok=True)
+                    if os.path.exists(data_dir):
+                        print(f"Copying log data: {data_dir} -> {dest_data_dir}")
+                        shutil.copytree(data_dir, dest_data_dir, dirs_exist_ok=True)
                     else:
-                        print(f"Warning: Input logs directory not found: {input_dir}")
-                        
-                    if os.path.exists(output_dir):
-                        print(f"Copying output logs: {output_dir} -> {dest_output_dir}")
-                        shutil.copytree(output_dir, dest_output_dir, dirs_exist_ok=True)
-                    else:
-                        print(f"Warning: Output logs directory not found: {output_dir}")
+                        print(f"Warning: Log data directory not found: {data_dir}")
                         
                     print("Copying to file server completed successfully.")
         except Exception as e:

@@ -30,8 +30,20 @@ def is_irm_protected(filepath: str) -> bool:
     except Exception:
         return False
 
+GENERATED_CSV_FILES = {
+    "raw_events.csv", "interactions.csv", "reset_sessions.csv",
+    "retrieval_results.csv", "feedback.csv", "analytics_daily.csv",
+    "analytics_category.csv", "integrated.csv", "data_dictionary.csv"
+}
+
 def discover_csv_files(input_dir: str) -> List[str]:
-    files = [f for f in os.listdir(input_dir) if f.lower().endswith('.csv')]
+    files = []
+    for f in os.listdir(input_dir):
+        if not f.lower().endswith('.csv'):
+            continue
+        if f in GENERATED_CSV_FILES or f.startswith('【'):
+            continue
+        files.append(f)
     # Return full paths sorted by filename
     return sorted([os.path.join(input_dir, f) for f in files])
 

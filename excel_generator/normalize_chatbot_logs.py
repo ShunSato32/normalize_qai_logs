@@ -22,11 +22,14 @@ from datetime import datetime, timezone, timedelta
 
 def main():
     parser = argparse.ArgumentParser(description="YourNavi-QAI Logs Normalization Tool")
-    parser.add_argument("INPUT_DIR", nargs="?", default="input_csv", help="Directory containing raw CSV files (default: input_csv)")
-    parser.add_argument("OUTPUT_DIR", nargs="?", default="output_run", help="Directory to save the normalized output (default: output_run)")
+    parser.add_argument("INPUT_DIR", nargs="?", default="datas", help="Directory containing raw CSV files (default: datas)")
+    parser.add_argument("OUTPUT_DIR", nargs="?", default=None, help="Directory to save the normalized output (default: same as INPUT_DIR)")
     parser.add_argument("--anonymize-users", action="store_true", help="Anonymize user names")
     parser.add_argument("--strict", action="store_true", help="Fail if any input file has errors")
     parser.add_argument("--no-template", action="store_true", help="Do not use template Excel file even if present")
+    parser.add_argument("--export-analytics-daily", action="store_true", help="Export analytics_daily.csv")
+    parser.add_argument("--export-analytics-category", action="store_true", help="Export analytics_category.csv")
+    parser.add_argument("--export-summary-csv", action="store_true", help="Export summary CSV files (統合版, 集計詳細, 集計概要 CSVs)")
     
     args = parser.parse_args()
     
@@ -35,7 +38,9 @@ def main():
         input_dir = os.path.join(project_root, input_dir)
         
     output_dir = args.OUTPUT_DIR
-    if not os.path.isabs(output_dir) and not os.path.exists(output_dir):
+    if output_dir is None:
+        output_dir = input_dir
+    elif not os.path.isabs(output_dir) and not os.path.exists(output_dir):
         output_dir = os.path.join(project_root, output_dir)
     
     if not os.path.exists(input_dir):
@@ -81,7 +86,11 @@ def main():
         dist = compute_session_distribution(sessions)
         
         # 8. Export requested CSVs and manifest
-        write_analytics(output_dir, overview, daily, category, dist)
+        write_analytics(
+            output_dir, overview, daily, category, dist,
+            write_daily=args.export_analytics_daily,
+            write_category=args.export_analytics_category
+        )
         write_manifest(output_dir, manifest)
         
         # 9. Generate JST Timestamped Excel Workbook directly into output_dir
@@ -110,292 +119,293 @@ def main():
             
         print(f"Excel output created at: {output_excel_path}")
         
-        # 9.5 Always write integrated rows as CSV too (flat value format)
-        output_csv_name = f"【社名】実施記録分析シート_統合版_{timestamp}.csv"
-        output_csv_path = os.path.join(output_dir, output_csv_name)
-        
-        # Load column configurations dynamically
-        config_paths_to_try = [
-            os.path.join(project_root, "config", "column_config.json"),
-            os.path.join(script_dir, "config", "column_config.json"),
-            "config/column_config.json"
-        ]
-        config_file_path = None
-        for p in config_paths_to_try:
-            if os.path.exists(p):
-                config_file_path = p
-                break
-        
-        if not config_file_path:
-            # Try template fallbacks
+        # 9.5 Write summary CSV files if requested via --export-summary-csv
+        if args.export_summary_csv:
+            output_csv_name = f"【社名】実施記録分析シート_統合版_{timestamp}.csv"
+            output_csv_path = os.path.join(output_dir, output_csv_name)
+            
+            # Load column configurations dynamically
+            config_paths_to_try = [
+                os.path.join(project_root, "config", "column_config.json"),
+                os.path.join(script_dir, "config", "column_config.json"),
+                "config/column_config.json"
+            ]
+            config_file_path = None
             for p in config_paths_to_try:
-                dir_name = os.path.dirname(p)
-                base_name = os.path.basename(p)
-                name, ext = os.path.splitext(base_name)
-                template_path = os.path.join(dir_name, f"{name}_template{ext}")
-                if os.path.exists(template_path):
-                    try:
-                        import shutil
-                        if dir_name:
-                            os.makedirs(dir_name, exist_ok=True)
-                        shutil.copyfile(template_path, p)
-                        print(f"Initialized active config file from template: {p}")
-                        config_file_path = p
-                        break
-                    except Exception as e:
-                        print(f"Warning: Failed to copy template {template_path} to {p}: {e}", file=sys.stderr)
-                        config_file_path = template_path
-                        break
-
-        active_columns = []
-        if config_file_path:
-            try:
-                with open(config_file_path, "r", encoding="utf-8") as f:
-                    config_data = json.load(f)
-                for item in config_data:
-                    pname = item.get("physical_name")
-                    jname = item.get("japanese_name") or pname
-                    if pname:
-                        active_columns.append((pname, jname))
-            except Exception as e:
-                print(f"Warning: Failed to load column_config.json inside CSV generator: {e}", file=sys.stderr)
-                traceback.print_exc()
-        else:
-            print("Warning: column_config.json not found for CSV generator. Falling back to default headers.", file=sys.stderr)
-        
-        if not active_columns:
-            from excel_writer import HEADERS
-            active_columns = [(h, h) for h in HEADERS]
-            
-        # user_name 列 of index to alphabet (for department VLOOKUP)
-        user_name_col_letter = "K" # default
-        try:
-            from openpyxl.utils import get_column_letter
-            for idx, (pn, jn) in enumerate(active_columns):
-                if pn == "user_name":
-                    user_name_col_letter = get_column_letter(idx + 2) # start from B column in excel idx+2
+                if os.path.exists(p):
+                    config_file_path = p
                     break
-        except Exception:
-            pass
             
-        import csv
-        try:
-            with open(output_csv_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.writer(f)
-                # Write header
-                writer.writerow([jname for pname, jname in active_columns])
-                
-                # Write rows
-                for row_idx, row_data in enumerate(integrated_rows, start=1):
-                    row_values = []
-                    is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
-                    
-                    # 1. Parse retrievals from retrieval_xx columns
-                    parsed_retrievals = {}
-                    for rank in range(1, 11):
-                        col_name = f"retrieval_{rank:02d}"
-                        json_str = row_data.get(col_name)
-                        filename = ""
-                        content = ""
-                        score_val = ""
-                        if json_str:
-                            try:
-                                data = json.loads(json_str)
-                                filename = data.get("filename") or data.get("fileName") or data.get("display_name") or ""
-                                content = data.get("content", "")
-                                s = data.get("score")
-                                if s is not None and s != "":
-                                    score_val = float(s)
-                            except Exception:
-                                pass
-                        parsed_retrievals[f"ref_doc_{rank}"] = filename
-                        parsed_retrievals[f"ref_text_{rank}"] = content
-                        parsed_retrievals[f"score_{rank}"] = score_val
-                        
-                    # 2. Check keywords against retrieved content
-                    ref_checks = {}
-                    kw1 = str(row_data.get("keyword_1", "")).strip()
-                    kw2 = str(row_data.get("keyword_2", "")).strip()
-                    kw3 = str(row_data.get("keyword_3", "")).strip()
-                    any_hit = False
-                    for rank in range(1, 11):
-                        text = parsed_retrievals[f"ref_text_{rank}"]
-                        hit = False
-                        if text:
-                            for kw in (kw1, kw2, kw3):
-                                if kw and kw in text:
-                                    hit = True
-                                    break
-                        ref_checks[f"ref_check_{rank}"] = "〇" if hit else ""
-                        if hit:
-                            any_hit = True
-                            
-                    for pname, jname in active_columns:
-                        if pname == "No.":
-                            val = row_idx
-                        elif pname == "qa_classification":
-                            val = row_data.get("qa_classification", "")
-                            if is_sys_cmd and not val:
-                                val = "④集計対象外"
-                        elif pname == "is_target":
-                            if is_sys_cmd:
-                                val = "×"
-                            else:
-                                q_class = row_data.get("qa_classification", "")
-                                if q_class and (q_class.startswith("①") or q_class.startswith("⑤")):
-                                    val = "◯"
-                                else:
-                                    val = "×"
-                        elif pname.startswith("ref_doc_") and len(pname) > 8:
-                            val = parsed_retrievals.get(pname, "")
-                        elif pname.startswith("ref_text_") and len(pname) > 9:
-                            val = parsed_retrievals.get(pname, "")
-                        elif pname.startswith("score_") and len(pname) > 6:
-                            score_val = parsed_retrievals.get(pname, "")
-                            val = f"{score_val:.6f}" if isinstance(score_val, float) else score_val
-                        elif pname.startswith("ref_check_") and len(pname) > 10:
-                            val = ref_checks.get(pname, "")
-                        elif pname == "hit_judgment":
-                            val = "〇" if any_hit else ""
-                        elif pname == "date_jst":
-                            started_jst = row_data.get("started_at_jst", "")
-                            if started_jst and len(started_jst) >= 10:
-                                val = started_jst[:10].replace("-", "/")
-                            else:
-                                val = ""
-                        elif pname == "department":
-                            # Row index in Excel JST sheet starts at 4 (row_idx + 3)
-                            val = f'=VLOOKUP({user_name_col_letter}{row_idx+3},社員マスタ!C:D,2,0)'
-                        elif pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
-                            val_str = row_data.get(pname, "")
-                            if val_str:
-                                dt = parse_iso_datetime(val_str)
-                                val = dt.strftime('%Y/%m/%d %H:%M:%S') if dt else val_str
-                            else:
-                                val = ""
-                        else:
-                            val = row_data.get(pname, "")
-                            
-                        row_values.append(val)
-                    writer.writerow(row_values)
-            print(f"CSV output created at: {output_csv_path}")
-        except Exception as csv_err:
-            print(f"Warning: Failed to create output CSV: {csv_err}", file=sys.stderr)
-        
-        # 9.6 Always write Summary Details (集計詳細) as CSV too (flat value format)
-        output_dt_csv_name = f"【社名】実施記録分析シート_集計詳細_{timestamp}.csv"
-        output_dt_csv_path = os.path.join(output_dir, output_dt_csv_name)
-        
-        try:
-            cats_json = load_target_categories()
-            top_names, tree_names, node_map = flatten_category_tree(cats_json)
-            added_headers = top_names + tree_names
-            daily_results = aggregate_daily_summary(integrated_rows, top_names, tree_names, node_map)
-            
-            fixed_headers_dt = [
-                "日付", "質問数", "UU", "該当無数", "その他数", 
-                "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
-                "評価無数", "評価総数", "有効評価総数", "評価率", "満足度"
-            ]
-            full_headers_dt = fixed_headers_dt + added_headers
-            
-            with open(output_dt_csv_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(full_headers_dt)
-                
-                for d_res in daily_results:
-                    day = d_res["day"]
-                    q_count = d_res["q_count"]
-                    user_count = d_res["user_count"]
-                    c1 = d_res["c1"]
-                    c5 = d_res["c5"]
-                    
-                    valid_q = q_count
-                    coverage = (valid_q - c1) / valid_q if valid_q > 0 else 0.0
-                    
-                    bad = d_res["bad"]
-                    good = d_res["good"]
-                    unset = d_res["unset"]
-                    
-                    total_fb = bad + good + unset
-                    valid_fb = bad + good
-                    
-                    fb_rate = valid_fb / q_count if q_count > 0 else 0.0
-                    satisfaction = good / valid_fb if valid_fb > 0 else 0.0
-                    
-                    # Formatted as percentage strings
-                    coverage_str = f"{coverage:.1%}"
-                    fb_rate_str = f"{fb_rate:.1%}"
-                    satisfaction_str = f"{satisfaction:.1%}"
-                    
-                    row = [
-                        day, q_count, user_count, c1, c5,
-                        valid_q, coverage_str, bad, good, unset,
-                        total_fb, valid_fb, fb_rate_str, satisfaction_str
-                    ]
-                    
-                    for top_name in top_names:
-                        row.append(d_res["top_counts"].get(top_name, 0))
-                    for tree_name in tree_names:
-                        row.append(d_res["tree_counts"].get(tree_name, 0))
-                        
-                    writer.writerow(row)
-            print(f"CSV output created at: {output_dt_csv_path}")
-        except Exception as dt_err:
-            print(f"Warning: Failed to create Summary Details CSV: {dt_err}", file=sys.stderr)
-            traceback.print_exc()
+            if not config_file_path:
+                # Try template fallbacks
+                for p in config_paths_to_try:
+                    dir_name = os.path.dirname(p)
+                    base_name = os.path.basename(p)
+                    name, ext = os.path.splitext(base_name)
+                    template_path = os.path.join(dir_name, f"{name}_template{ext}")
+                    if os.path.exists(template_path):
+                        try:
+                            import shutil
+                            if dir_name:
+                                os.makedirs(dir_name, exist_ok=True)
+                            shutil.copyfile(template_path, p)
+                            print(f"Initialized active config file from template: {p}")
+                            config_file_path = p
+                            break
+                        except Exception as e:
+                            print(f"Warning: Failed to copy template {template_path} to {p}: {e}", file=sys.stderr)
+                            config_file_path = template_path
+                            break
 
-        # 9.7 Always write Summary Overview (集計概要) as CSV too (flat value format)
-        output_ov_csv_name = f"【社名】実施記録分析シート_集計概要_{timestamp}.csv"
-        output_ov_csv_path = os.path.join(output_dir, output_ov_csv_name)
-        
-        try:
-            fixed_headers_ov = [
-                "日付", "質問数", "UU", "解決率", "bad評価数", 
-                "good評価数", "評価無数", "評価総数", "評価率", "満足度"
-            ]
-            full_headers_ov = fixed_headers_ov + top_names
+            active_columns = []
+            if config_file_path:
+                try:
+                    with open(config_file_path, "r", encoding="utf-8") as f:
+                        config_data = json.load(f)
+                    for item in config_data:
+                        pname = item.get("physical_name")
+                        jname = item.get("japanese_name") or pname
+                        if pname:
+                            active_columns.append((pname, jname))
+                except Exception as e:
+                    print(f"Warning: Failed to load column_config.json inside CSV generator: {e}", file=sys.stderr)
+                    traceback.print_exc()
+            else:
+                print("Warning: column_config.json not found for CSV generator. Falling back to default headers.", file=sys.stderr)
             
-            with open(output_ov_csv_path, "w", encoding="utf-8-sig", newline="") as f:
-                writer = csv.writer(f)
-                writer.writerow(full_headers_ov)
+            if not active_columns:
+                from excel_writer import HEADERS
+                active_columns = [(h, h) for h in HEADERS]
                 
-                for d_res in daily_results:
-                    day = d_res["day"]
-                    q_count = d_res["q_count"]
-                    user_count = d_res["user_count"]
-                    c1 = d_res["c1"]
+            # user_name 列 of index to alphabet (for department VLOOKUP)
+            user_name_col_letter = "K" # default
+            try:
+                from openpyxl.utils import get_column_letter
+                for idx, (pn, jn) in enumerate(active_columns):
+                    if pn == "user_name":
+                        user_name_col_letter = get_column_letter(idx + 2) # start from B column in excel idx+2
+                        break
+            except Exception:
+                pass
+                
+            import csv
+            try:
+                with open(output_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    # Write header
+                    writer.writerow([jname for pname, jname in active_columns])
                     
-                    solve_rate = (q_count - c1) / q_count if q_count > 0 else 0.0
-                    
-                    bad = d_res["bad"]
-                    good = d_res["good"]
-                    unset = d_res["unset"]
-                    
-                    total_fb = bad + good + unset
-                    valid_fb = bad + good
-                    
-                    fb_rate = valid_fb / q_count if q_count > 0 else 0.0
-                    satisfaction = good / valid_fb if valid_fb > 0 else 0.0
-                    
-                    # Formatted as percentage strings
-                    solve_rate_str = f"{solve_rate:.1%}"
-                    fb_rate_str = f"{fb_rate:.1%}"
-                    satisfaction_str = f"{satisfaction:.1%}"
-                    
-                    row = [
-                        day, q_count, user_count, solve_rate_str, bad,
-                        good, unset, total_fb, fb_rate_str, satisfaction_str
-                    ]
-                    
-                    for top_name in top_names:
-                        row.append(d_res["top_counts"].get(top_name, 0))
+                    # Write rows
+                    for row_idx, row_data in enumerate(integrated_rows, start=1):
+                        row_values = []
+                        is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
                         
-                    writer.writerow(row)
-            print(f"CSV output created at: {output_ov_csv_path}")
-        except Exception as ov_err:
-            print(f"Warning: Failed to create Summary Overview CSV: {ov_err}", file=sys.stderr)
-            traceback.print_exc()
+                        # 1. Parse retrievals from retrieval_xx columns
+                        parsed_retrievals = {}
+                        for rank in range(1, 11):
+                            col_name = f"retrieval_{rank:02d}"
+                            json_str = row_data.get(col_name)
+                            filename = ""
+                            content = ""
+                            score_val = ""
+                            if json_str:
+                                try:
+                                    data = json.loads(json_str)
+                                    filename = data.get("filename") or data.get("fileName") or data.get("display_name") or ""
+                                    content = data.get("content", "")
+                                    s = data.get("score")
+                                    if s is not None and s != "":
+                                        score_val = float(s)
+                                except Exception:
+                                    pass
+                            parsed_retrievals[f"ref_doc_{rank}"] = filename
+                            parsed_retrievals[f"ref_text_{rank}"] = content
+                            parsed_retrievals[f"score_{rank}"] = score_val
+                            
+                        # 2. Check keywords against retrieved content
+                        ref_checks = {}
+                        kw1 = str(row_data.get("keyword_1", "")).strip()
+                        kw2 = str(row_data.get("keyword_2", "")).strip()
+                        kw3 = str(row_data.get("keyword_3", "")).strip()
+                        any_hit = False
+                        for rank in range(1, 11):
+                            text = parsed_retrievals[f"ref_text_{rank}"]
+                            hit = False
+                            if text:
+                                for kw in (kw1, kw2, kw3):
+                                    if kw and kw in text:
+                                        hit = True
+                                        break
+                            ref_checks[f"ref_check_{rank}"] = "〇" if hit else ""
+                            if hit:
+                                any_hit = True
+                                
+                        for pname, jname in active_columns:
+                            if pname == "No.":
+                                val = row_idx
+                            elif pname == "qa_classification":
+                                val = row_data.get("qa_classification", "")
+                                if is_sys_cmd and not val:
+                                    val = "④集計対象外"
+                            elif pname == "is_target":
+                                if is_sys_cmd:
+                                    val = "×"
+                                else:
+                                    q_class = row_data.get("qa_classification", "")
+                                    if q_class and (q_class.startswith("①") or q_class.startswith("⑤")):
+                                        val = "◯"
+                                    else:
+                                        val = "×"
+                            elif pname.startswith("ref_doc_") and len(pname) > 8:
+                                val = parsed_retrievals.get(pname, "")
+                            elif pname.startswith("ref_text_") and len(pname) > 9:
+                                val = parsed_retrievals.get(pname, "")
+                            elif pname.startswith("score_") and len(pname) > 6:
+                                score_val = parsed_retrievals.get(pname, "")
+                                val = f"{score_val:.6f}" if isinstance(score_val, float) else score_val
+                            elif pname.startswith("ref_check_") and len(pname) > 10:
+                                val = ref_checks.get(pname, "")
+                            elif pname == "hit_judgment":
+                                val = "〇" if any_hit else ""
+                            elif pname == "date_jst":
+                                started_jst = row_data.get("started_at_jst", "")
+                                if started_jst and len(started_jst) >= 10:
+                                    val = started_jst[:10].replace("-", "/")
+                                else:
+                                    val = ""
+                            elif pname == "department":
+                                # Row index in Excel JST sheet starts at 4 (row_idx + 3)
+                                val = f'=VLOOKUP({user_name_col_letter}{row_idx+3},社員マスタ!C:D,2,0)'
+                            elif pname in ("started_at_utc", "completed_at_utc", "started_at_jst", "completed_at_jst", "feedback_at_utc", "feedback_at_jst"):
+                                val_str = row_data.get(pname, "")
+                                if val_str:
+                                    dt = parse_iso_datetime(val_str)
+                                    val = dt.strftime('%Y/%m/%d %H:%M:%S') if dt else val_str
+                                else:
+                                    val = ""
+                            else:
+                                val = row_data.get(pname, "")
+                                
+                            row_values.append(val)
+                        writer.writerow(row_values)
+                print(f"CSV output created at: {output_csv_path}")
+            except Exception as csv_err:
+                print(f"Warning: Failed to create output CSV: {csv_err}", file=sys.stderr)
+            
+            # 9.6 Always write Summary Details (集計詳細) as CSV too (flat value format)
+            output_dt_csv_name = f"【社名】実施記録分析シート_集計詳細_{timestamp}.csv"
+            output_dt_csv_path = os.path.join(output_dir, output_dt_csv_name)
+            
+            try:
+                cats_json = load_target_categories()
+                top_names, tree_names, node_map = flatten_category_tree(cats_json)
+                added_headers = top_names + tree_names
+                daily_results = aggregate_daily_summary(integrated_rows, top_names, tree_names, node_map)
+                
+                fixed_headers_dt = [
+                    "日付", "質問数", "UU", "該当無数", "その他数", 
+                    "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
+                    "評価無数", "評価総数", "有効評価総数", "評価率", "満足度"
+                ]
+                full_headers_dt = fixed_headers_dt + added_headers
+                
+                with open(output_dt_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(full_headers_dt)
+                    
+                    for d_res in daily_results:
+                        day = d_res["day"]
+                        q_count = d_res["q_count"]
+                        user_count = d_res["user_count"]
+                        c1 = d_res["c1"]
+                        c5 = d_res["c5"]
+                        
+                        valid_q = q_count
+                        coverage = (valid_q - c1) / valid_q if valid_q > 0 else 0.0
+                        
+                        bad = d_res["bad"]
+                        good = d_res["good"]
+                        unset = d_res["unset"]
+                        
+                        total_fb = bad + good + unset
+                        valid_fb = bad + good
+                        
+                        fb_rate = valid_fb / q_count if q_count > 0 else 0.0
+                        satisfaction = good / valid_fb if valid_fb > 0 else 0.0
+                        
+                        # Formatted as percentage strings
+                        coverage_str = f"{coverage:.1%}"
+                        fb_rate_str = f"{fb_rate:.1%}"
+                        satisfaction_str = f"{satisfaction:.1%}"
+                        
+                        row = [
+                            day, q_count, user_count, c1, c5,
+                            valid_q, coverage_str, bad, good, unset,
+                            total_fb, valid_fb, fb_rate_str, satisfaction_str
+                        ]
+                        
+                        for top_name in top_names:
+                            row.append(d_res["top_counts"].get(top_name, 0))
+                        for tree_name in tree_names:
+                            row.append(d_res["tree_counts"].get(tree_name, 0))
+                            
+                        writer.writerow(row)
+                print(f"CSV output created at: {output_dt_csv_path}")
+            except Exception as dt_err:
+                print(f"Warning: Failed to create Summary Details CSV: {dt_err}", file=sys.stderr)
+                traceback.print_exc()
+
+            # 9.7 Always write Summary Overview (集計概要) as CSV too (flat value format)
+            output_ov_csv_name = f"【社名】実施記録分析シート_集計概要_{timestamp}.csv"
+            output_ov_csv_path = os.path.join(output_dir, output_ov_csv_name)
+            
+            try:
+                fixed_headers_ov = [
+                    "日付", "質問数", "UU", "解決率", "bad評価数", 
+                    "good評価数", "評価無数", "評価総数", "評価率", "満足度"
+                ]
+                full_headers_ov = fixed_headers_ov + top_names
+                
+                with open(output_ov_csv_path, "w", encoding="utf-8-sig", newline="") as f:
+                    writer = csv.writer(f)
+                    writer.writerow(full_headers_ov)
+                    
+                    for d_res in daily_results:
+                        day = d_res["day"]
+                        q_count = d_res["q_count"]
+                        user_count = d_res["user_count"]
+                        c1 = d_res["c1"]
+                        
+                        solve_rate = (q_count - c1) / q_count if q_count > 0 else 0.0
+                        
+                        bad = d_res["bad"]
+                        good = d_res["good"]
+                        unset = d_res["unset"]
+                        
+                        total_fb = bad + good + unset
+                        valid_fb = bad + good
+                        
+                        fb_rate = valid_fb / q_count if q_count > 0 else 0.0
+                        satisfaction = good / valid_fb if valid_fb > 0 else 0.0
+                        
+                        # Formatted as percentage strings
+                        solve_rate_str = f"{solve_rate:.1%}"
+                        fb_rate_str = f"{fb_rate:.1%}"
+                        satisfaction_str = f"{satisfaction:.1%}"
+                        
+                        row = [
+                            day, q_count, user_count, solve_rate_str, bad,
+                            good, unset, total_fb, fb_rate_str, satisfaction_str
+                        ]
+                        
+                        for top_name in top_names:
+                            row.append(d_res["top_counts"].get(top_name, 0))
+                            
+                        writer.writerow(row)
+                print(f"CSV output created at: {output_ov_csv_path}")
+            except Exception as ov_err:
+                print(f"Warning: Failed to create Summary Overview CSV: {ov_err}", file=sys.stderr)
+                traceback.print_exc()
         
         # Validation checks
         if len(raw_events) != manifest.counts["raw_event_count"]:

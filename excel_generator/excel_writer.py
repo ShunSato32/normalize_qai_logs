@@ -364,6 +364,7 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]], u
         
         # Write fixed headers if NOT using template
         if not use_template:
+            ws_dt.row_dimensions[2].height = 25
             fixed_headers_dt = [
                 "日付", "質問数", "UU", "該当無数", "その他数", 
                 "有効質問数", "カバレッジ", "bad評価数", "good評価数", 
@@ -410,6 +411,8 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]], u
             ref_data_cell = ws_dt.cell(row=3, column=1)
 
         for r_idx, d_res in enumerate(daily_results, start=3):
+            if not use_template:
+                ws_dt.row_dimensions[r_idx].height = 20
             ws_dt.cell(row=r_idx, column=1, value=d_res["day"])
             ws_dt.cell(row=r_idx, column=2, value=d_res["q_count"])
             ws_dt.cell(row=r_idx, column=3, value=d_res["user_count"])
@@ -458,6 +461,7 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]], u
         
         # Write fixed headers if NOT using template
         if not use_template:
+            ws_ov.row_dimensions[2].height = 25
             fixed_headers_ov = [
                 "日付", "質問数", "UU", "解決率", "bad評価数", 
                 "good評価数", "評価無数", "評価総数", "評価率", "満足度"
@@ -495,6 +499,8 @@ def populate_summary_sheets(wb: openpyxl.Workbook, rows: List[Dict[str, Any]], u
             ref_data_cell_ov = ws_ov.cell(row=3, column=1)
 
         for r_idx, d_res in enumerate(daily_results, start=3):
+            if not use_template:
+                ws_ov.row_dimensions[r_idx].height = 20
             ws_ov.cell(row=r_idx, column=1, value=d_res["day"])
             ws_ov.cell(row=r_idx, column=2, value=f"=集計詳細!B{r_idx}")
             ws_ov.cell(row=r_idx, column=3, value=f"=集計詳細!C{r_idx}")
@@ -651,6 +657,7 @@ def write_integrated_to_excel(template_path: str = None, output_path: str = None
     else:
         header_font = Font(name="Yu Gothic", size=10, bold=True)
         header_fill = PatternFill(fill_type="solid", start_color="F2F2F2", end_color="F2F2F2")
+        ws.row_dimensions[3].height = 25
         for idx, (pname, jname) in enumerate(active_columns):
             col_idx = idx + 2
             cell = ws.cell(row=3, column=col_idx)
@@ -666,6 +673,8 @@ def write_integrated_to_excel(template_path: str = None, output_path: str = None
         last_row_index = 4
         
     for row_num, row_data in enumerate(rows, start=4):
+        if not use_template:
+            ws.row_dimensions[row_num].height = 20
         is_sys_cmd = (row_data.get("is_system_command") in (1, "1", True, "true", "True"))
         for idx, (pname, jname) in enumerate(active_columns):
             col_idx = idx + 2

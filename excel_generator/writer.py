@@ -102,16 +102,18 @@ def write_feedback(output_dir: str, feedback: List[Dict[str, str]]):
     ]
     write_csv(os.path.join(output_dir, "feedback.csv"), feedback, fieldnames)
 
-def write_analytics(output_dir: str, overview: List[Dict], daily: List[Dict], category: List[Dict], dist: List[Dict]):
-    if daily:
-        write_csv(os.path.join(output_dir, "analytics_daily.csv"), daily, list(daily[0].keys()))
-    else:
-        write_csv(os.path.join(output_dir, "analytics_daily.csv"), [], [])
+def write_analytics(output_dir: str, overview: List[Dict], daily: List[Dict], category: List[Dict], dist: List[Dict], write_daily: bool = False, write_category: bool = False):
+    if write_daily:
+        if daily:
+            write_csv(os.path.join(output_dir, "analytics_daily.csv"), daily, list(daily[0].keys()))
+        else:
+            write_csv(os.path.join(output_dir, "analytics_daily.csv"), [], [])
         
-    if category:
-        write_csv(os.path.join(output_dir, "analytics_category.csv"), category, list(category[0].keys()))
-    else:
-        write_csv(os.path.join(output_dir, "analytics_category.csv"), [], [])
+    if write_category:
+        if category:
+            write_csv(os.path.join(output_dir, "analytics_category.csv"), category, list(category[0].keys()))
+        else:
+            write_csv(os.path.join(output_dir, "analytics_category.csv"), [], [])
 
 def write_integrated(output_dir: str, rows: List[Dict[str, Any]]):
     if not rows:

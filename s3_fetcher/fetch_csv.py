@@ -49,6 +49,9 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
     if profile == "default":
         profile = None # Use default credentials without passing explicit --profile flag if it is "default"
         
+    access_key_id = config.get("aws_access_key_id") or None
+    secret_access_key = config.get("aws_secret_access_key") or None
+    session_token = config.get("aws_session_token") or None
     region = config.get("aws_region")
     s3_cfg = config.get("s3", {})
     bucket_name = s3_cfg.get("bucket_name", "")
@@ -58,7 +61,7 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
     
     local_cfg = config.get("local", {})
     if not dest_dir:
-        dest_dir = local_cfg.get("download_destination_dir", "../input_csv")
+        dest_dir = local_cfg.get("download_destination_dir", "../datas")
     if not os.path.isabs(dest_dir):
         dest_dir = os.path.abspath(os.path.join(current_dir, dest_dir))
         
@@ -90,7 +93,10 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
             archive_folder_name=archive_folder,
             file_extension_filter=ext_filter,
             profile=profile,
-            region=region
+            region=region,
+            access_key_id=access_key_id,
+            secret_access_key=secret_access_key,
+            session_token=session_token
         )
     except Exception as e:
         print(f"[Error] Failed to list S3 files: {e}")
@@ -116,7 +122,10 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
             s3_key=s3_key,
             dest_path=local_path,
             profile=profile,
-            region=region
+            region=region,
+            access_key_id=access_key_id,
+            secret_access_key=secret_access_key,
+            session_token=session_token
         )
         
         if success:
@@ -129,7 +138,10 @@ def run_s3_fetch(config_path: Optional[str] = None, dest_dir: Optional[str] = No
                 append_timestamp=append_ts,
                 timestamp_format=ts_fmt,
                 profile=profile,
-                region=region
+                region=region,
+                access_key_id=access_key_id,
+                secret_access_key=secret_access_key,
+                session_token=session_token
             )
             downloaded_records.append({
                 "filename": filename,

@@ -28,8 +28,7 @@ normalize_qai_logs/
 │   └── templates/             <--- テンプレートExcel（【社名】実施記録分析シート.xlsx）
 │
 ├── config/                    <--- 設定ファイルフォルダ（カテゴリ定義や列設定など）
-├── input_csv/                 <--- S3からダウンロードされたCSVファイルの格納先（エクセル化インプット）
-└── output_run/                <--- 生成された分析エクセルシートおよびCSVの保存先
+└── datas/                     <--- S3からダウンロードされた生ログCSVおよび生成された分析エクセルシート・CSVの統合保存先（datas/YYYYMMDD_ddd/）
 ```
 
 ---
@@ -75,7 +74,7 @@ python run_pipeline.py --skip-excel
 python s3_fetcher/fetch_csv.py
 ```
 
-#### ローカル (input_csv/) のCSVファイルのエクセル化のみを実行する場合
+#### ローカル (datas/) のCSVファイルのエクセル化のみを実行する場合
 ```bash
 python run_pipeline.py --skip-fetch
 # または直接スクリプトを実行:
@@ -90,9 +89,14 @@ python excel_generator/normalize_chatbot_logs.py --no-template
 ```
 *(※ テンプレート不使用時には、エクセルファイルに加えて、対話ログの統合データを格納したCSVファイル `【社名】実施記録分析シート_統合版_*.csv` も合わせて自動出力されます。)*
 
-※ 入力ディレクトリや出力ディレクトリを明示的に指定してエクセル化を実行したい場合は以下のように指定可能です：
+※ analytics_daily.csv や analytics_category.csv を出力したい場合は、オプション引数を指定して実行可能です：
 ```bash
-python excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --strict
+python excel_generator/normalize_chatbot_logs.py datas/20260727_Mon --export-analytics-daily --export-analytics-category
+```
+
+※ 入力・出力ディレクトリを明示的に指定してエクセル化を実行したい場合は以下のように指定可能です：
+```bash
+python excel_generator/normalize_chatbot_logs.py ./datas/20260727_Mon --strict
 ```
 
 ---
@@ -104,6 +108,9 @@ python excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --stri
 ```json
 {
   "aws_profile": "default",
+  "aws_access_key_id": "YOUR_ACCESS_KEY_ID",
+  "aws_secret_access_key": "YOUR_SECRET_ACCESS_KEY",
+  "aws_session_token": "",
   "aws_region": "ap-northeast-1",
   "s3": {
     "bucket_name": "your-company-qai-logs-bucket",
@@ -112,7 +119,7 @@ python excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --stri
     "file_extension_filter": ".csv"
   },
   "local": {
-    "download_destination_dir": "../input_csv",
+    "download_destination_dir": "../datas",
     "clear_destination_before_download": false
   },
   "archive_behavior": {
@@ -122,6 +129,10 @@ python excel_generator/normalize_chatbot_logs.py ./input_csv ./output_run --stri
 }
 ```
 
+- **認証方式の柔軟な切り替え**:
+  1. **アクセスキー直指定（推奨・アカウント固定用）**: `aws_access_key_id` と `aws_secret_access_key` を記述すると、PC側の `aws configure` 設定に依存せず、常に指定したAWSアカウントでS3にアクセスします。（※ `s3_config.json` は `.gitignore` に登録されておりGit共有されないため安全です）
+  2. **AWSプロファイル指定（複数アカウント所有時）**: `aws_profile` に `"company-a"` 等のプロファイル名を指定することで、特定プロファイルの認証情報を利用できます。
+  3. **デフォルト認証**: `aws_access_key_id` が空かつ `aws_profile` が `"default"` の場合は、PCのデフォルトAWS認証情報が使われます。
 - **二重取り込み防止（アーカイブ移動）**: ダウンロードしたファイルは、破損や空ファイルでないことを正常検証した**直後にのみ**、S3上の `archive/` フォルダへ自動移動 (`aws s3 mv`) されます。
 - **ファイル保護**: 万が一ダウンロード中にエラーや通信切断が発生した場合は、S3上の元ファイルの移動を自動停止し、データの消失を防ぎます。
 - **再実行時の除外**: S3上のパスに `archive/` が含まれるファイルは、一覧取得時に自動でスキップされます。

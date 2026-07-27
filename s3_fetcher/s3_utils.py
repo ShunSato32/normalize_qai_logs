@@ -4,9 +4,17 @@ import re
 from datetime import datetime
 from typing import List, Dict, Any, Optional
 
-def run_aws_command(cmd_args: List[str], profile: Optional[str] = None, region: Optional[str] = None) -> subprocess.CompletedProcess:
+def run_aws_command(
+    cmd_args: List[str],
+    profile: Optional[str] = None,
+    region: Optional[str] = None,
+    access_key_id: Optional[str] = None,
+    secret_access_key: Optional[str] = None,
+    session_token: Optional[str] = None
+) -> subprocess.CompletedProcess:
     """
     Execute an AWS CLI command safely using subprocess.
+    Supports profile, region, and explicit access keys / secret keys.
     """
     full_cmd = ["aws"] + cmd_args
     if profile:
@@ -14,8 +22,21 @@ def run_aws_command(cmd_args: List[str], profile: Optional[str] = None, region: 
     if region:
         full_cmd.extend(["--region", region])
         
-    print(f"[AWS CLI] Running: {' '.join(full_cmd)}")
-    return subprocess.run(full_cmd, capture_output=True, text=True)
+    env = os.environ.copy()
+    if access_key_id:
+        env["AWS_ACCESS_KEY_ID"] = access_key_id
+    if secret_access_key:
+        env["AWS_SECRET_ACCESS_KEY"] = secret_access_key
+    if session_token:
+        env["AWS_SESSION_TOKEN"] = session_token
+    if region:
+        env["AWS_DEFAULT_REGION"] = region
+
+    masked_cmd = []
+    for arg in full_cmd:
+        masked_cmd.append(arg)
+    print(f"[AWS CLI] Running: {' '.join(masked_cmd)}")
+    return subprocess.run(full_cmd, capture_output=True, text=True, env=env)
 
 def list_s3_files(
     bucket_name: str,
@@ -23,14 +44,24 @@ def list_s3_files(
     archive_folder_name: str,
     file_extension_filter: str = ".csv",
     profile: Optional[str] = None,
-    region: Optional[str] = None
+    region: Optional[str] = None,
+    access_key_id: Optional[str] = None,
+    secret_access_key: Optional[str] = None,
+    session_token: Optional[str] = None
 ) -> List[Dict[str, Any]]:
     """
     List files in S3 under bucket/prefix, excluding files in the archive folder or non-matching extensions.
     Returns a list of dicts: [{'key': '...', 'size': 1234, 'filename': '...'}, ...]
     """
     s3_path = f"s3://{bucket_name}/{prefix}" if not prefix.endswith("/") else f"s3://{bucket_name}/{prefix}"
-    res = run_aws_command(["s3", "ls", s3_path], profile=profile, region=region)
+    res = run_aws_command(
+        ["s3", "ls", s3_path],
+        profile=profile,
+        region=region,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        session_token=session_token
+    )
     
     if res.returncode != 0:
         print(f"[Error] Failed to list files in {s3_path}")
@@ -90,13 +121,23 @@ def download_s3_file(
     s3_key: str,
     dest_path: str,
     profile: Optional[str] = None,
-    region: Optional[str] = None
+    region: Optional[str] = None,
+    access_key_id: Optional[str] = None,
+    secret_access_key: Optional[str] = None,
+    session_token: Optional[str] = None
 ) -> bool:
     """
     Download a single file from S3 to dest_path using aws s3 cp.
     """
     s3_uri = f"s3://{bucket_name}/{s3_key}"
-    res = run_aws_command(["s3", "cp", s3_uri, dest_path], profile=profile, region=region)
+    res = run_aws_command(
+        ["s3", "cp", s3_uri, dest_path],
+        profile=profile,
+        region=region,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        session_token=session_token
+    )
     
     if res.returncode != 0:
         print(f"[Error] Failed to download {s3_uri}")
@@ -116,7 +157,10 @@ def archive_s3_file(
     append_timestamp: bool = True,
     timestamp_format: str = "_%Y%m%d_%H%M%S",
     profile: Optional[str] = None,
-    region: Optional[str] = None
+    region: Optional[str] = None,
+    access_key_id: Optional[str] = None,
+    secret_access_key: Optional[str] = None,
+    session_token: Optional[str] = None
 ) -> bool:
     """
     Move a file on S3 to the archive folder using aws s3 mv.
@@ -141,7 +185,14 @@ def archive_s3_file(
     dest_uri = f"s3://{bucket_name}/{dest_key}"
     
     print(f"[Archive] Moving {source_uri} -> {dest_uri}")
-    res = run_aws_command(["s3", "mv", source_uri, dest_uri], profile=profile, region=region)
+    res = run_aws_command(
+        ["s3", "mv", source_uri, dest_uri],
+        profile=profile,
+        region=region,
+        access_key_id=access_key_id,
+        secret_access_key=secret_access_key,
+        session_token=session_token
+    )
     
     if res.returncode != 0:
         print(f"[Error] Failed to archive file on S3: {res.stderr}")
